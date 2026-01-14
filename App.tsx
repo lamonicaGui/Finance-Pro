@@ -10,6 +10,7 @@ import { getGeminiResponse } from './services/gemini.ts';
 import { supabase } from './services/supabase.ts';
 import Login from './components/Login.tsx';
 import UserManagement from './components/UserManagement.tsx';
+import ApprovalsLayout from './components/ApprovalsLayout.tsx';
 import { Session } from '@supabase/supabase-js';
 import { copyAndOpenOutlook, generateOrderEmailHtml, generateOrderEmailSubject, generateOrderEmailPlainText } from './utils/emailGenerator.ts';
 
@@ -21,7 +22,8 @@ const App: React.FC = () => {
   const [isAuthLoading, setIsAuthLoading] = useState(true);
 
   const [activeTab, setActiveTab] = useState<'ordens' | 'laminas' | 'swing-trade' | 'gemini' | 'renda-fixa' | 'relatorios' | 'gestao-usuarios'>('ordens');
-  const [expandedCategory, setExpandedCategory] = useState<'rv' | 'rf' | 'rel' | null>('rv');
+  const [expandedCategory, setExpandedCategory] = useState<'rv' | 'rf' | 'rel' | 'config' | null>('rv');
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
 
   const [clients, setClients] = useState<ClientGroupType[]>([
     {
@@ -87,6 +89,9 @@ const App: React.FC = () => {
         console.error('Error fetching clients:', clientsError);
       } else if (clientsData) {
         setClients(clientsData);
+        if (clientsData.length > 0 && !selectedClientId) {
+          setSelectedClientId(clientsData[0].id);
+        }
       }
     };
 
@@ -368,6 +373,33 @@ const App: React.FC = () => {
 
   if (!session) {
     return <Login onLoginSuccess={() => setIsAuthLoading(true)} />;
+  }
+
+  if (activeTab === 'ordens') {
+    return (
+      <ApprovalsLayout
+        clients={clients}
+        selectedClientId={selectedClientId}
+        onSelectClient={setSelectedClientId}
+        onAddClient={addClient}
+        onAddClientFromMaster={addClientFromMaster}
+        onUpdateClient={updateClient}
+        onRemoveClient={removeClient}
+        onAddOrder={addOrder}
+        onUpdateOrder={updateOrder}
+        onRemoveOrder={removeOrder}
+        onSendEmail={(client) => setPreviewClient(client)}
+        onSendAll={handleSendAll}
+        onLogout={handleLogout}
+        userProfile={userProfile}
+        onSwitchTab={(tab) => {
+          setActiveTab(tab);
+          if (tab === 'laminas' || tab === 'swing-trade' || tab === 'ordens') setExpandedCategory('rv');
+          if (tab === 'renda-fixa') setExpandedCategory('rf');
+          if (tab === 'gestao-usuarios') setExpandedCategory('config');
+        }}
+      />
+    );
   }
 
   return (
