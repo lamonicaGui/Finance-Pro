@@ -252,7 +252,7 @@ const App: React.FC = () => {
       side: 'Compra',
       lastPrice: 0,
       orderPrice: 0,
-      mode: 'Limitada',
+      mode: 'Mercado',
       basis: 'Quantidade',
       value: 0,
       stopLoss: false

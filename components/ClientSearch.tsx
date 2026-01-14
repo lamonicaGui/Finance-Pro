@@ -51,9 +51,9 @@ const ClientSearch: React.FC<ClientSearchProps> = ({
                 let queryBuilder = supabase.from('cadastro_clientes').select('*');
 
                 if (query.trim()) {
-                    // Após converter as colunas no DB para TEXT, podemos usar .ilike para TUDO
-                    // Isso permite buscas parciais e evita erros de sintaxe com campos vazios
-                    let filter = `"Cliente".ilike.%${query}%,"Assessor".ilike.%${query}%,"Cod Bolsa".ilike.%${query}%,"Conta".ilike.%${query}%`;
+                    // O usuário solicitou busca estrita por Cliente, Conta e Cod Bolsa.
+                    // Removemos 'Assessor' para evitar que todos os clientes de um assessor apareçam.
+                    let filter = `Cliente.ilike.%${query}%,"Cod Bolsa".ilike.%${query}%,Conta.ilike.%${query}%`;
                     queryBuilder = queryBuilder.or(filter);
                 }
 

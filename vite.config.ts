@@ -10,10 +10,10 @@ export default defineConfig(({ mode }) => {
       host: '0.0.0.0',
       proxy: {
         '/api/yahoo': {
-          target: 'https://query1.finance.yahoo.com',
+          target: 'https://query2.finance.yahoo.com',
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api\/yahoo/, ''),
-          secure: false, // often needed for https targets in dev
+          secure: true,
         }
       }
     },
