@@ -2,13 +2,13 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // Initialize the Google Generative AI client
 // Ensure you have GEMINI_API_KEY defined in your .env.local file
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env.GEMINI_API_KEY : '');
 
 if (!API_KEY) {
-  console.warn("GEMINI_API_KEY is not set in environment variables.");
+  console.warn("GEMINI_API_KEY is not set in environment variables. Gemini features will be disabled.");
 }
 
-const genAI = new GoogleGenerativeAI(API_KEY || "");
+const genAI = API_KEY ? new GoogleGenerativeAI(API_KEY) : null;
 
 /**
  * Generates content using the Gemini model.
