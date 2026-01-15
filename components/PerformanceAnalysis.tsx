@@ -135,6 +135,8 @@ const PerformanceAnalysis: React.FC = () => {
             }
 
             const { data, error } = await query;
+            console.log(`[PerformanceAnalysis] Filters:`, { selectedClient, selectedTicker, startDate, endDate });
+            console.log(`[PerformanceAnalysis] Success: ${data?.length || 0} items fetched`);
 
             if (error) {
                 console.error("Error fetching data:", error);

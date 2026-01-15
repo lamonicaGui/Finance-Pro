@@ -67,7 +67,7 @@ const ClientSearch: React.FC<ClientSearchProps> = ({
     useEffect(() => {
         const searchClients = async () => {
             const trimmedQuery = query.trim();
-            if (trimmedQuery.length < 2) {
+            if (trimmedQuery.length < 1) {
                 setResults([]);
                 setLoading(false);
                 return;
@@ -102,7 +102,7 @@ const ClientSearch: React.FC<ClientSearchProps> = ({
             }
         };
 
-        const timer = setTimeout(searchClients, 400);
+        const timer = setTimeout(searchClients, 150);
         return () => clearTimeout(timer);
     }, [query]);
 
@@ -142,7 +142,7 @@ const ClientSearch: React.FC<ClientSearchProps> = ({
                 </div>
             </div>
 
-            {isOpen && query.trim().length >= 2 && (
+            {isOpen && query.trim().length > 0 && (
                 <div className="absolute left-0 right-0 z-[9999] mt-2">
                     <div className="max-h-72 w-full overflow-auto rounded-[1.5rem] bg-white dark:bg-slate-900 py-3 text-base shadow-2xl ring-1 ring-black/10 focus:outline-none sm:text-sm border border-slate-100 dark:border-slate-800 custom-scrollbar animate-in fade-in slide-in-from-top-2 duration-200">
                         {loading ? (
