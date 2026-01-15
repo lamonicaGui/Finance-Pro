@@ -147,3 +147,61 @@ export const copyAndOpenOutlook = async (to: string, subject: string, htmlConten
         document.body.removeChild(tempDiv);
     }
 };
+
+export const generateHawkOrderEmailSubject = (client: { conta: string, id: string }) => {
+    const codId = client.id || 'N/A';
+    return `Aprovação de Ordem Hawk Strategy | CC: ${client.conta || '000000'} / COD: ${codId}`;
+};
+
+export const generateHawkOrderEmailHtml = (client: { nome: string }, orders: any[]) => {
+    const renderOrderBlocks = () => {
+        return orders.map((order) => {
+            return `
+            <p style="margin: 0; font-family: Arial; font-size: 14px;"><strong>Natureza da aplicação:</strong> Compra – Montagem de operação</p>
+            <p style="margin: 0; font-family: Arial; font-size: 14px;"><strong>Financeiro:</strong> R$ ${parseFloat(order.financial).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+            <p style="margin: 0; font-family: Arial; font-size: 14px;"><strong>ID:</strong> ${order.assetId}</p>
+            <p style="margin: 0; font-family: Arial; font-size: 14px;"><strong>Descrição do ativo:</strong> Hawk Strategy</p>
+            <p style="margin: 0; font-family: Arial; font-size: 14px;"><strong>Papel:</strong> ${order.ticker}</p>
+            <p style="margin: 0; font-family: Arial; font-size: 14px;"><strong>Percentual de ganho:</strong> ${order.gain}</p>
+            <p style="margin: 0; font-family: Arial; font-size: 14px;"><strong>Percentual de proteção (Barreira):</strong> ${order.protection}</p>
+            <p style="margin: 0; font-family: Arial; font-size: 14px;"><strong>Vencimento:</strong> ${order.expiration}</p>
+            <br/>
+            `;
+        }).join('');
+    };
+
+    return `
+    <div style="font-family: Arial, sans-serif; font-size: 14px; color: #000000; background-color: #ffffff;">
+      <p style="margin-bottom: 16px;">Prezado ${client.nome || 'cliente'},</p>
+      <p style="margin-bottom: 16px;">Conforme conversamos, peço seu ‘de acordo’ para execução das ordens abaixo:</p>
+      
+      ${renderOrderBlocks()}
+
+      <p style="margin-top: 16px; margin-bottom: 4px;">Aguardo confirmação.</p>
+      <p style="margin-top: 0;">Atenciosamente,</p>
+      <p style="margin-top: 12px;"><strong>FinancePro Team</strong></p>
+    </div>
+  `;
+};
+
+export const generateHawkOrderEmailPlainText = (client: { nome: string }, orders: any[]) => {
+    const orderBlocks = orders.map((order) => {
+        return `Natureza da aplicação: Compra – Montagem de operação
+Financeiro: R$ ${parseFloat(order.financial).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+ID: ${order.assetId}
+Descrição do ativo: Hawk Strategy
+Papel: ${order.ticker}
+Percentual de ganho: ${order.gain}
+Percentual de proteção (Barreira): ${order.protection}
+Vencimento: ${order.expiration}`;
+    }).join('\n\n');
+
+    let body = `Prezado ${client.nome || 'cliente'},\n\n`;
+    body += `Conforme conversamos, peço seu ‘de acordo’ para execução das ordens abaixo:\n\n`;
+    body += `${orderBlocks}\n\n`;
+    body += `Aguardo confirmação.\n`;
+    body += `Atenciosamente,\n`;
+    body += `FinancePro Team`;
+
+    return body;
+};

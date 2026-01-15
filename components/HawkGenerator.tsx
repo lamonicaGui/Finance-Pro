@@ -237,6 +237,7 @@ const HawkGenerator: React.FC = () => {
       {showOrderModal && (
         <HawkOrderModal
           selectedAssets={assets.filter(a => a.selected)}
+          allAssets={assets}
           onClose={() => setShowOrderModal(false)}
         />
       )}

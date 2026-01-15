@@ -1,40 +1,51 @@
-
 import React, { useState, useEffect } from 'react';
 import { HawkAsset } from '../types.ts';
 import ClientSearch from './ClientSearch.tsx';
 import {
   copyAndOpenOutlook,
-  generateOrderEmailSubject,
-  generateOrderEmailHtml,
-  generateOrderEmailPlainText
+  generateHawkOrderEmailSubject,
+  generateHawkOrderEmailHtml,
+  generateHawkOrderEmailPlainText
 } from '../utils/emailGenerator.ts';
 
 interface HawkOrderModalProps {
   selectedAssets: HawkAsset[];
+  allAssets: HawkAsset[];
   onClose: () => void;
 }
 
 interface OrderLineState {
   assetId: string;
+  ticker: string;
+  gain: string;
+  protection: string;
+  expiration: string;
   mode: 'Qtd' | 'Fin';
   quantity: string;
   financial: string;
+  price: number;
 }
 
-const HawkOrderModal: React.FC<HawkOrderModalProps> = ({ selectedAssets, onClose }) => {
-  const [selectedClient, setSelectedClient] = useState<any>(null);
-  const [orderLines, setOrderLines] = useState<OrderLineState[]>([]);
+interface ClientSession {
+  client: any;
+  orderLines: OrderLineState[];
+}
+
+const HawkOrderModal: React.FC<HawkOrderModalProps> = ({ selectedAssets, allAssets, onClose }) => {
+  const [sessions, setSessions] = useState<ClientSession[]>([]);
+  const [activeSessionIndex, setActiveSessionIndex] = useState<number>(-1);
   const [realtimePrices, setRealtimePrices] = useState<Record<string, number>>({});
   const [isSyncing, setIsSyncing] = useState(false);
+  const [showAssetSelector, setShowAssetSelector] = useState(false);
 
   useEffect(() => {
     fetchRealtimePrices();
-  }, [selectedAssets]);
+  }, [selectedAssets, allAssets]);
 
   const fetchRealtimePrices = async () => {
     setIsSyncing(true);
     try {
-      const uniqueTickers = Array.from(new Set(selectedAssets.map(a => a.ticker))) as string[];
+      const uniqueTickers = Array.from(new Set(allAssets.map(a => a.ticker))) as string[];
       const priceMap: Record<string, number> = {};
 
       await Promise.all(uniqueTickers.map(async (ticker: string) => {
@@ -61,99 +72,136 @@ const HawkOrderModal: React.FC<HawkOrderModalProps> = ({ selectedAssets, onClose
     }
   };
 
-  useEffect(() => {
-    setOrderLines(selectedAssets.map(asset => ({
+  const createOrderLines = (assets: HawkAsset[]): OrderLineState[] => {
+    return assets.map(asset => ({
       assetId: asset.id,
+      ticker: asset.ticker,
+      gain: asset.gain,
+      protection: asset.protection,
+      expiration: asset.expiration,
       mode: 'Fin',
       quantity: '',
-      financial: ''
-    })));
-  }, [selectedAssets]);
-
-  const getAssetPrice = (asset: HawkAsset) => {
-    return realtimePrices[asset.ticker] || asset.price || 0;
+      financial: '',
+      price: realtimePrices[asset.ticker] || asset.price || 0
+    }));
   };
 
-  const updateLine = (assetId: string, updates: Partial<OrderLineState>) => {
-    setOrderLines(prev => prev.map(line => {
-      if (line.assetId !== assetId) return line;
+  const handleAddClient = (client: any) => {
+    const alreadyExists = sessions.find(s => s.client.Conta === client.Conta);
+    if (alreadyExists) {
+      const idx = sessions.indexOf(alreadyExists);
+      setActiveSessionIndex(idx);
+      return;
+    }
 
-      const asset = selectedAssets.find(a => a.id === assetId);
-      const price = asset ? getAssetPrice(asset) : 1;
+    const newSession: ClientSession = {
+      client,
+      orderLines: createOrderLines(selectedAssets)
+    };
+    setSessions(prev => [...prev, newSession]);
+    setActiveSessionIndex(sessions.length);
+  };
+
+  const handleAddAssetToClient = (asset: HawkAsset) => {
+    if (activeSessionIndex === -1) return;
+
+    setSessions(prev => {
+      const newSessions = [...prev];
+      const session = newSessions[activeSessionIndex];
+
+      const alreadyHas = session.orderLines.find(line => line.assetId === asset.id);
+      if (alreadyHas) return prev;
+
+      session.orderLines.push({
+        assetId: asset.id,
+        ticker: asset.ticker,
+        gain: asset.gain,
+        protection: asset.protection,
+        expiration: asset.expiration,
+        mode: 'Fin',
+        quantity: '',
+        financial: '',
+        price: realtimePrices[asset.ticker] || asset.price || 0
+      });
+      return newSessions;
+    });
+    setShowAssetSelector(false);
+  };
+
+  const updateLine = (lineIdx: number, updates: Partial<OrderLineState>) => {
+    if (activeSessionIndex === -1) return;
+
+    setSessions(prev => {
+      const newSessions = [...prev];
+      const session = newSessions[activeSessionIndex];
+      const line = session.orderLines[lineIdx];
+      const price = realtimePrices[line.ticker] || line.price || 1;
+
       const newLine = { ...line, ...updates };
 
-      // Mudança de modo limpa os campos para novo cálculo
       if (updates.mode) {
         newLine.quantity = '';
         newLine.financial = '';
-        return newLine;
-      }
-
-      // Cálculo Quantidade -> Financeiro
-      if (updates.quantity !== undefined && newLine.mode === 'Qtd') {
+      } else if (updates.quantity !== undefined && newLine.mode === 'Qtd') {
         const q = parseFloat(updates.quantity) || 0;
         newLine.financial = q > 0 ? (q * price).toFixed(2) : '';
-      }
-
-      // Cálculo Financeiro -> Quantidade
-      if (updates.financial !== undefined && newLine.mode === 'Fin') {
+      } else if (updates.financial !== undefined && newLine.mode === 'Fin') {
         const f = parseFloat(updates.financial) || 0;
         newLine.quantity = f > 0 ? Math.floor(f / price).toString() : '';
       }
 
-      return newLine;
-    }));
+      session.orderLines[lineIdx] = newLine;
+      return newSessions;
+    });
   };
 
-  const handleSendOrder = async () => {
-    if (!selectedClient) {
-      alert('Por favor, selecione um cliente da base.');
-      return;
-    }
+  const handleRemoveLine = (lineIdx: number) => {
+    setSessions(prev => {
+      const newSessions = [...prev];
+      newSessions[activeSessionIndex].orderLines.splice(lineIdx, 1);
+      return newSessions;
+    });
+  };
 
-    const validOrders = orderLines.filter(l => l.quantity && parseFloat(l.quantity) > 0);
+  const handleRemoveClient = (idx: number) => {
+    setSessions(prev => prev.filter((_, i) => i !== idx));
+    if (activeSessionIndex >= idx) {
+      setActiveSessionIndex(prev => Math.max(-1, prev - 1));
+    }
+  };
+
+  const handleSendOrder = async (sessionIdx: number) => {
+    const session = sessions[sessionIdx];
+    const validOrders = session.orderLines.filter(l => l.financial && parseFloat(l.financial) > 0);
 
     if (validOrders.length === 0) {
-      alert('Defina valores para as ordens antes de enviar.');
+      alert('Defina valores financeiros para as ordens do cliente antes de enviar.');
       return;
     }
 
-    // Map for email generator
-    const mappedOrders = validOrders.map(l => {
-      const asset = selectedAssets.find(a => a.id === l.assetId);
-      return {
-        ticker: asset?.ticker || '',
-        side: 'Compra', // Hawk is always Buy/Entry for these structured products
-        quantity: l.quantity,
-        price: asset?.price || 0,
-        mode: 'Limitada', // Structured products usually have a fixed price/condition
-        // Add protection/gain info as a note if possible, or just keep it simple
-      };
+    const subject = generateHawkOrderEmailSubject({
+      conta: session.client.Conta,
+      id: session.client["Cod Bolsa"]
     });
 
-    const subject = generateOrderEmailSubject({
-      conta: selectedClient.Conta,
-      id: selectedClient["Cod Bolsa"]
-    });
-
-    const html = generateOrderEmailHtml({ nome: selectedClient.Cliente }, mappedOrders);
-    const plainText = generateOrderEmailPlainText({ nome: selectedClient.Cliente }, mappedOrders);
-    const ccEmail = selectedClient["Email Assessor"];
+    const html = generateHawkOrderEmailHtml({ nome: session.client.Cliente }, validOrders);
+    const plainText = generateHawkOrderEmailPlainText({ nome: session.client.Cliente }, validOrders);
+    const ccEmail = session.client["Email Assessor"];
 
     await copyAndOpenOutlook(
-      selectedClient["Email Cliente"] || '',
+      session.client["Email Cliente"] || '',
       subject,
       html,
       plainText,
       ccEmail
     );
-
-    onClose();
   };
+
+  const activeSession = activeSessionIndex !== -1 ? sessions[activeSessionIndex] : null;
 
   return (
     <div className="fixed inset-0 z-[150] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white w-full max-w-6xl rounded-2xl shadow-2xl overflow-hidden border border-slate-200 flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+      <div className="bg-white w-full max-w-7xl rounded-2xl shadow-2xl overflow-hidden border border-slate-200 flex flex-col h-[90vh] animate-in zoom-in-95 duration-200">
 
         {/* Header */}
         <div className="px-6 py-4 flex justify-between items-center bg-white border-b border-slate-100">
@@ -161,144 +209,198 @@ const HawkOrderModal: React.FC<HawkOrderModalProps> = ({ selectedAssets, onClose
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary-dark">
               <span className="material-symbols-outlined font-bold">send</span>
             </div>
-            <h2 className="text-lg font-black text-slate-800 tracking-tight">Boleta de Ordens - Hawk Strategy</h2>
+            <h2 className="text-lg font-black text-slate-800 tracking-tight">Boleta de Ordens Hawk Strategy</h2>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-all p-1">
             <span className="material-symbols-outlined">close</span>
           </button>
         </div>
 
-        <div className="p-6 overflow-y-auto space-y-6">
-          {/* Nome do Cliente */}
-          <div className="space-y-1.5 p-6 bg-slate-50/50 rounded-2xl border border-slate-100">
-            <label className="text-xs font-black text-slate-800 uppercase tracking-widest block mb-1.5">Cliente da Base Master</label>
-            <ClientSearch
-              onSelect={(c) => setSelectedClient(c)}
-              placeholder="Busque por Nome, Sinacor ou Conta..."
-            />
-            {selectedClient && (
-              <div className="mt-3 flex items-center gap-3 animate-in fade-in slide-in-from-top-1 duration-200">
-                <span className="material-symbols-outlined text-emerald-500">check_circle</span>
-                <p className="text-sm font-bold text-slate-700">
-                  Selecionado: <span className="uppercase text-primary-dark">{selectedClient.Cliente}</span>
-                  <span className="ml-2 text-slate-400">| Conta: {selectedClient.Conta}</span>
-                  <span className="ml-2 text-slate-400">| Bolsa: {selectedClient["Cod Bolsa"]}</span>
-                </p>
+        <div className="flex flex-1 overflow-hidden">
+          {/* Sidebar - Clientes */}
+          <div className="w-80 bg-slate-50 border-r border-slate-200 p-6 flex flex-col gap-6">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Adicionar Cliente</label>
+              <ClientSearch
+                onSelect={handleAddClient}
+                placeholder="Busque cliente..."
+              />
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Clientes Selecionados ({sessions.length})</label>
+              {sessions.map((s, idx) => (
+                <div
+                  key={s.client.Conta}
+                  onClick={() => setActiveSessionIndex(idx)}
+                  className={`group p-3 rounded-xl cursor-pointer transition-all border-2 ${activeSessionIndex === idx ? 'bg-primary/10 border-primary shadow-sm' : 'bg-white border-transparent hover:border-slate-200'}`}
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className={`text-xs font-black uppercase tracking-tight truncate w-48 ${activeSessionIndex === idx ? 'text-primary-dark' : 'text-slate-700'}`}>{s.client.Cliente}</p>
+                      <p className="text-[10px] font-bold text-slate-400">Conta: {s.client.Conta}</p>
+                    </div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleRemoveClient(idx); }}
+                      className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-500 transition-all"
+                    >
+                      <span className="material-symbols-outlined text-sm">delete</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {sessions.length === 0 && (
+                <div className="py-12 text-center">
+                  <span className="material-symbols-outlined text-slate-200 text-4xl block mb-2">person_add</span>
+                  <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Nenhum cliente</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Main Content */}
+          <div className="flex-1 flex flex-col bg-white">
+            {!activeSession ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-slate-300">
+                <span className="material-symbols-outlined text-6xl mb-4">touch_app</span>
+                <p className="font-black text-sm uppercase tracking-widest">Selecione ou adicione um cliente à esquerda</p>
+              </div>
+            ) : (
+              <div className="flex-1 flex flex-col overflow-hidden">
+                {/* Info Bar */}
+                <div className="px-8 py-4 bg-slate-50/50 border-b border-slate-100 flex justify-between items-center">
+                  <div>
+                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">{activeSession.client.Cliente}</h3>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">ID Bolsa: {activeSession.client["Cod Bolsa"]} | Consultor: {activeSession.client.Assessor}</p>
+                  </div>
+                  <button
+                    onClick={() => handleSendOrder(activeSessionIndex)}
+                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#102218] text-primary text-[10px] font-black hover:brightness-110 transition-all shadow-md uppercase tracking-widest"
+                  >
+                    <span className="material-symbols-outlined text-sm">send</span>
+                    Enviar Email deste Cliente
+                  </button>
+                </div>
+
+                {/* Table */}
+                <div className="flex-1 overflow-y-auto p-8">
+                  <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead className="bg-slate-50 text-[10px] font-black uppercase text-slate-400 tracking-widest border-b border-slate-100">
+                        <tr>
+                          <th className="px-6 py-4">Papel</th>
+                          <th className="px-6 py-4 text-center">Cotação</th>
+                          <th className="px-6 py-4 text-center">Ganho</th>
+                          <th className="px-6 py-4 text-center">Proteção</th>
+                          <th className="px-6 py-4 text-center">Modo</th>
+                          <th className="px-6 py-4">Financeiro (R$)</th>
+                          <th className="px-6 py-4">Quantidade</th>
+                          <th className="px-6 py-4 text-right">Ação</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {activeSession.orderLines.map((line, lIdx) => (
+                          <tr key={`${activeSession.client.Conta}-${line.assetId}-${lIdx}`} className="hover:bg-slate-50/50 transition-colors">
+                            <td className="px-6 py-4">
+                              <p className="font-black text-slate-900">{line.ticker}</p>
+                              <p className="text-[10px] font-bold text-slate-400">ID: {line.assetId}</p>
+                            </td>
+                            <td className="px-6 py-4 text-center font-bold text-slate-700">
+                              {isSyncing ? '...' : `R$ ${line.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              <span className="bg-emerald-50 text-emerald-600 px-2 py-1 rounded text-[10px] font-black tracking-tight">{line.gain}</span>
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-[10px] font-black tracking-tight">{line.protection}</span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex items-center justify-center gap-3">
+                                {['Fin', 'Qtd'].map(m => (
+                                  <label key={m} className="flex items-center gap-1 cursor-pointer">
+                                    <input
+                                      type="radio"
+                                      checked={line.mode === m}
+                                      onChange={() => updateLine(lIdx, { mode: m as any })}
+                                      className="h-3 w-3 text-primary border-slate-300"
+                                    />
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase">{m}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="relative">
+                                <span className="absolute left-2 top-2.5 text-[10px] text-slate-400">R$</span>
+                                <input
+                                  type="number"
+                                  value={line.financial}
+                                  disabled={line.mode === 'Qtd'}
+                                  onChange={(e) => updateLine(lIdx, { financial: e.target.value })}
+                                  className="w-28 rounded-lg border-slate-200 pl-7 py-2 text-[11px] font-black focus:ring-primary disabled:bg-slate-50 transition-all"
+                                />
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <input
+                                type="number"
+                                value={line.quantity}
+                                disabled={line.mode === 'Fin'}
+                                onChange={(e) => updateLine(lIdx, { quantity: e.target.value })}
+                                className="w-20 rounded-lg border-slate-200 py-2 text-[11px] font-black focus:ring-primary disabled:bg-slate-50 transition-all"
+                              />
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <button onClick={() => handleRemoveLine(lIdx)} className="text-slate-300 hover:text-red-500 transition-colors">
+                                <span className="material-symbols-outlined text-lg">close</span>
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="mt-6 flex justify-between items-center">
+                    <div className="relative">
+                      <button
+                        onClick={() => setShowAssetSelector(!showAssetSelector)}
+                        className="flex items-center gap-2 text-[10px] font-black text-primary-dark uppercase tracking-widest hover:text-primary transition-colors"
+                      >
+                        <span className="material-symbols-outlined text-sm">add_circle</span>
+                        Adicionar Ativo ao Cliente
+                      </button>
+
+                      {showAssetSelector && (
+                        <div className="absolute top-full left-0 mt-2 w-72 max-h-60 bg-white rounded-xl shadow-2xl border border-slate-200 overflow-y-auto z-10 animate-in slide-in-from-top-2 duration-200">
+                          {allAssets.map(asset => (
+                            <div
+                              key={asset.id}
+                              onClick={() => handleAddAssetToClient(asset)}
+                              className="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0"
+                            >
+                              <p className="font-black text-xs text-slate-800 tracking-tight">{asset.ticker}</p>
+                              <div className="flex justify-between mt-1">
+                                <span className="text-[9px] font-bold text-slate-400 uppercase">{asset.term}</span>
+                                <span className="text-[9px] font-black text-emerald-600">{asset.gain}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="text-right">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Subtotal Estimado</p>
+                      <p className="text-xl font-black text-slate-800 tracking-tighter">
+                        R$ {activeSession.orderLines.reduce((acc, l) => acc + (parseFloat(l.financial) || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </div>
-
-          {/* Tabela de Ordens */}
-          <div className="rounded-2xl border border-slate-200 bg-slate-50/30 overflow-hidden shadow-inner">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead className="bg-slate-100/80 text-[10px] font-black uppercase text-slate-500 tracking-widest">
-                <tr>
-                  <th className="px-4 py-4">Ativo</th>
-                  <th className="px-4 py-4">Empresa</th>
-                  <th className="px-4 py-4 text-center">Cotação</th>
-                  <th className="px-4 py-4 text-center">Ganho</th>
-                  <th className="px-4 py-4 text-center">Proteção</th>
-                  <th className="px-4 py-4 text-center">Modo</th>
-                  <th className="px-4 py-4">Quantidade</th>
-                  <th className="px-4 py-4">Financeiro (R$)</th>
-                  <th className="px-4 py-4 text-right">Execução Aproximada</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 bg-white">
-                {orderLines.map(line => {
-                  const asset = selectedAssets.find(a => a.id === line.assetId);
-                  if (!asset) return null;
-
-                  const assetPrice = getAssetPrice(asset);
-                  const approxExecution = (parseFloat(line.quantity) || 0) * assetPrice;
-
-                  return (
-                    <tr key={line.assetId} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="px-4 py-4 font-black text-slate-900">{asset.ticker}</td>
-                      <td className="px-4 py-4 text-slate-500 italic">{asset.company}</td>
-                      <td className="px-4 py-4 text-center font-bold text-slate-700">
-                        {isSyncing ? (
-                          <span className="text-[10px] text-emerald-500 animate-pulse">Sinc...</span>
-                        ) : (
-                          `R$ ${assetPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                        )}
-                      </td>
-                      <td className="px-4 py-4 text-center text-emerald-600 font-bold">{asset.gain}</td>
-                      <td className="px-4 py-4 text-center text-slate-600 font-bold">{asset.protection}</td>
-                      <td className="px-4 py-4">
-                        <div className="flex items-center justify-center gap-4">
-                          <label className="flex items-center gap-1.5 cursor-pointer">
-                            <input
-                              type="radio"
-                              name={`mode-${line.assetId}`}
-                              checked={line.mode === 'Qtd'}
-                              onChange={() => updateLine(line.assetId, { mode: 'Qtd' })}
-                              className="text-primary focus:ring-primary h-4 w-4 border-slate-300"
-                            />
-                            <span className="text-[11px] font-bold text-slate-500">Qtd</span>
-                          </label>
-                          <label className="flex items-center gap-1.5 cursor-pointer">
-                            <input
-                              type="radio"
-                              name={`mode-${line.assetId}`}
-                              checked={line.mode === 'Fin'}
-                              onChange={() => updateLine(line.assetId, { mode: 'Fin' })}
-                              className="text-primary focus:ring-primary h-4 w-4 border-slate-300"
-                            />
-                            <span className="text-[11px] font-bold text-slate-500">Fin</span>
-                          </label>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <input
-                          type="number"
-                          value={line.quantity}
-                          disabled={line.mode === 'Fin'}
-                          placeholder="0"
-                          onChange={(e) => updateLine(line.assetId, { quantity: e.target.value })}
-                          className="w-24 rounded-lg border-slate-200 bg-slate-50/50 px-3 py-2 text-xs font-bold focus:ring-primary disabled:opacity-40 disabled:bg-slate-100 transition-all"
-                        />
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="relative">
-                          <span className="absolute left-2 top-2.5 text-[10px] text-slate-400">R$</span>
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={line.financial}
-                            disabled={line.mode === 'Qtd'}
-                            placeholder="0,00"
-                            onChange={(e) => updateLine(line.assetId, { financial: e.target.value })}
-                            className="w-32 rounded-lg border-slate-200 bg-slate-50/50 pl-7 pr-2 py-2 text-xs font-bold focus:ring-primary disabled:opacity-40 disabled:bg-slate-100 transition-all"
-                          />
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 text-right font-mono font-black text-slate-900">
-                        R$ {approxExecution.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="px-8 py-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
-          <button
-            onClick={onClose}
-            className="flex items-center gap-2 px-6 py-3 rounded-xl border border-slate-200 bg-white text-xs font-black text-slate-500 hover:bg-slate-100 transition-all uppercase"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={handleSendOrder}
-            className="flex items-center gap-2 px-10 py-3 rounded-xl bg-[#102218] text-primary text-xs font-black hover:brightness-125 transition-all shadow-lg shadow-primary/10 uppercase"
-          >
-            <span className="material-symbols-outlined text-[20px]">send</span>
-            Enviar E-mail de Aprovação
-          </button>
         </div>
       </div>
     </div>
