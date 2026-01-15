@@ -118,20 +118,32 @@ const PerformanceAnalysis: React.FC = () => {
         console.log("Iniciando processamento de dados:", data.length, "linhas");
 
         try {
-            // 2. Normalização com mapeamento de colunas por "fuzzy matching"
+            // 2. Normalização com mapeamento de colunas ultra-robusto
             const normalizedData: TradeRecord[] = data.map((item) => {
                 const itemKeys = Object.keys(item);
                 const getRaw = (aliases: string[]) => {
                     const normalizedAliases = aliases.map(a => normalizeStr(a));
-                    const foundKey = itemKeys.find(ik => normalizedAliases.includes(normalizeStr(ik)));
-                    return foundKey !== undefined ? item[foundKey] : undefined;
+
+                    // Prioridade 1: Match exato (normalizado)
+                    const exactKey = itemKeys.find(ik => normalizedAliases.includes(normalizeStr(ik)));
+                    if (exactKey !== undefined) return item[exactKey];
+
+                    // Prioridade 2: Match parcial (se a chave contém ou é contida pelo alias)
+                    const softKey = itemKeys.find(ik => {
+                        const nik = normalizeStr(ik);
+                        return normalizedAliases.some(alias => {
+                            if (alias.length < 3) return false;
+                            return nik.includes(alias) || alias.includes(nik);
+                        });
+                    });
+                    return softKey !== undefined ? item[softKey] : undefined;
                 };
 
-                const rawData = getRaw(['Data', 'Data Operação', 'Data Operacao', 'Date']);
-                const rawPapel = getRaw(['Papel', 'Ativo', 'Ticker', 'Symbol', 'Ação', 'Acao']);
-                const rawCV = getRaw(['C/V', 'CV', 'Operação', 'Operacao', 'Lado', 'Side', 'Tipo']);
-                const rawQtd = getRaw(['Qtd. Exec.', 'Quantidade Executada', 'Quantidade', 'Qtd', 'Qtde', 'Quantity']);
-                const rawPreco = getRaw(['Prc. Médio', 'Preço Médio', 'Preço', 'Preco', 'Pm', 'Price']);
+                const rawData = getRaw(['Data', 'Data Operação', 'Data Operacao', 'Date', 'Trade Date']);
+                const rawPapel = getRaw(['Papel', 'Ativo', 'Ticker', 'Symbol', 'Ativos', 'Ação', 'Acao']);
+                const rawCV = getRaw(['C/V', 'CV', 'C', 'V', 'Operação', 'Operacao', 'Lado', 'Side', 'Tipo', 'Compra/Venda']);
+                const rawQtd = getRaw(['Qtd. Exec.', 'Qtd. Exe', 'Quantidade Executada', 'Quantidade', 'Qtd', 'Qtde', 'Quantity', 'Volume Qtd']);
+                const rawPreco = getRaw(['Prc. Médio', 'Prc. Méd', 'Preço Médio', 'Preço', 'Preco', 'Pm', 'Price', 'Avg Price']);
                 const rawStatus = getRaw(['Status', 'Status da Ordem', 'Order Status']);
                 const rawDataHora = getRaw(['Data / Hora', 'Data/Hora', 'Timestamp', 'Date Time']);
                 const rawVolume = getRaw(['Volume', 'Volume Financeiro', 'Financeiro', 'Total']);
