@@ -104,6 +104,7 @@ const PerformanceAnalysis: React.FC = () => {
     const [clientsList, setClientsList] = useState<string[]>([]);
     const [tickersList, setTickersList] = useState<string[]>([]);
     const [selectedClient, setSelectedClient] = useState('');
+    const [selectedClientCode, setSelectedClientCode] = useState('');
     const [selectedTicker, setSelectedTicker] = useState('');
     const [selectedSide, setSelectedSide] = useState('');
     const [startDate, setStartDate] = useState('');
@@ -197,8 +198,11 @@ const PerformanceAnalysis: React.FC = () => {
         try {
             let query = supabase.from('executed_orders').select('*');
 
-            if (selectedClient) {
-                // Use ilike for robustness against spaces or case
+            if (selectedClientCode) {
+                // If we have a specific code from selection, use it directly (best for middle names mismatches)
+                query = query.eq('cod_bolsa', selectedClientCode);
+            } else if (selectedClient) {
+                // Fallback to name-based search if only typed
                 query = query.ilike('cliente', `%${selectedClient.trim()}%`);
             }
             if (selectedTicker) {
@@ -606,8 +610,14 @@ const PerformanceAnalysis: React.FC = () => {
                             <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Cliente</label>
                             <ClientSearch
                                 placeholder="Nome, Conta ou Bolsa..."
-                                onSelect={(master) => setSelectedClient(master.Cliente)}
-                                onQueryChange={setSelectedClient}
+                                onSelect={(master) => {
+                                    setSelectedClient(master.Cliente);
+                                    setSelectedClientCode(master["Cod Bolsa"] || '');
+                                }}
+                                onQueryChange={(val) => {
+                                    setSelectedClient(val);
+                                    setSelectedClientCode(''); // Clear code if they keep typing manually
+                                }}
                                 initialValue={selectedClient}
                                 showHeaderStyle
                                 className="w-full"
