@@ -14,6 +14,7 @@ const formatCurrency = (value: number) => {
 
 // Helper to format percentage
 const formatPercent = (value: number) => {
+    if (isNaN(value) || !isFinite(value)) return '0.00%';
     return `${value.toFixed(2)}%`;
 };
 
@@ -57,9 +58,67 @@ const PerformanceAnalysis: React.FC = () => {
     };
 
     const processRawData = (data: any[]) => {
+        setIsProcessing(true);
         console.log("Iniciando processamento de dados:", data.length, "linhas");
+
         try {
-            // Normalize data
+            // 1. Helper for robust number parsing
+            const parseNum = (val: any): number => {
+                if (typeof val === 'number') return val;
+                if (!val) return 0;
+
+                let clean = String(val).replace('R$', '').trim();
+
+                // Detect Brazilian format (e.g., 1.234,56) vs US (1,234.56)
+                const hasComma = clean.includes(',');
+                const hasDot = clean.includes('.');
+
+                if (hasComma && hasDot) {
+                    const lastComma = clean.lastIndexOf(',');
+                    const lastDot = clean.lastIndexOf('.');
+                    if (lastComma > lastDot) {
+                        // Brazilian: dots are thousands, comma is decimal
+                        clean = clean.replace(/\./g, '').replace(',', '.');
+                    } else {
+                        // US: commas are thousands, dot is decimal
+                        clean = clean.replace(/,/g, '');
+                    }
+                } else if (hasComma) {
+                    // Check if comma is decimal (likely 12,34) or thousands (likely 1,234)
+                    // If there's exactly 3 digits after the comma, it MIGHT be thousands, 
+                    // but in finance, it's safer to assume comma is decimal if it's the only separator.
+                    clean = clean.replace(',', '.');
+                }
+
+                const parsed = parseFloat(clean);
+                return isNaN(parsed) ? 0 : parsed;
+            };
+
+            // 2. Helper for date parsing
+            const parseFullDate = (dStr: string) => {
+                if (!dStr) return 0;
+                try {
+                    // Expecting DD/MM/YYYY HH:MM or DD/MM/YYYY
+                    const parts = dStr.split(' ');
+                    const dateParts = parts[0].split('/');
+                    if (dateParts.length < 3) return 0;
+
+                    const day = parseInt(dateParts[0]);
+                    const month = parseInt(dateParts[1]) - 1;
+                    const year = parseInt(dateParts[2]);
+
+                    const timeParts = parts[1] ? parts[1].split(':') : ['00', '00'];
+                    const hour = parseInt(timeParts[0] || '0');
+                    const min = parseInt(timeParts[1] || '0');
+
+                    const d = new Date(year, month, day, hour, min);
+                    return d.getTime();
+                } catch (e) {
+                    return 0;
+                }
+            };
+
+            // 3. Normalization and initial filtering
             const normalizedData: TradeRecord[] = data.map((item) => {
                 const getRaw = (keys: string[]) => {
                     for (const k of keys) {
@@ -68,17 +127,9 @@ const PerformanceAnalysis: React.FC = () => {
                     return undefined;
                 };
 
-                const parseNum = (val: any) => {
-                    if (typeof val === 'number') return val;
-                    if (!val) return 0;
-                    const clean = String(val).replace('R$', '').replace(/\./g, '').replace(',', '.').trim();
-                    const parsed = parseFloat(clean);
-                    return isNaN(parsed) ? 0 : parsed;
-                };
-
                 const rawData = getRaw(['Data']);
                 const rawPapel = getRaw(['Papel', 'Ativo']);
-                const rawCV = getRaw(['C/V', 'CV', 'Operacao']);
+                const rawCV = getRaw(['C/V', 'CV', 'Operação', 'Operacao']);
                 const rawQtd = getRaw(['Qtd. Exec.', 'Quantidade Executada', 'Quantidade']);
                 const rawPreco = getRaw(['Prc. Médio', 'Preço Médio', 'Preco']);
                 const rawStatus = getRaw(['Status', 'Status da Ordem']);
@@ -89,10 +140,10 @@ const PerformanceAnalysis: React.FC = () => {
                 return {
                     data: String(rawData || ''),
                     codBolsa: String(getRaw(['Cod Bolsa', 'Código da Bolsa', 'CodBolsa']) || ''),
-                    cliente: String(getRaw(['Cliente']) || ''),
+                    cliente: String(getRaw(['Cliente']) || 'Desconhecido'),
                     papel: String(rawPapel || ''),
-                    cv: (String(rawCV).startsWith('V') || rawCV === 'Venda') ? 'V' : 'C',
-                    quantidade: parseNum(rawQtd),
+                    cv: (String(rawCV).toUpperCase().startsWith('V') || String(rawCV).toUpperCase() === 'VENDA') ? 'V' : 'C',
+                    quantidade: Math.abs(parseNum(rawQtd)),
                     precoMedio: parseNum(rawPreco),
                     status: String(rawStatus || ''),
                     dataHora: String(rawDataHora || rawData || ''),
@@ -100,37 +151,18 @@ const PerformanceAnalysis: React.FC = () => {
                     liquidacao: String(getRaw(['Liquidação', 'Data de Liquidação']) || ''),
                     assessor: String(getRaw(['Assessor']) || ''),
                     especialista: String(getRaw(['Especialista']) || ''),
-                    conta: String(rawConta || '')
+                    conta: String(rawConta || 'N/A')
                 } as TradeRecord;
             }).filter(item => {
                 if (!item.papel || item.papel === 'Papel' || item.papel === 'Ativo') return false;
-                return item.status === 'Executada' || !item.status || item.status === 'undefined' || item.status === '';
+                // Keep only executed orders or unspecified (which we assume executed)
+                const status = String(item.status).toLowerCase();
+                return status === 'executada' || !item.status || status === 'undefined' || status === '';
             });
 
             console.log("Dados normalizados:", normalizedData.length, "registros válidos");
 
-            const parseFullDate = (dStr: string) => {
-                if (!dStr) return 0;
-                try {
-                    const parts = dStr.split(' ');
-                    const dateParts = parts[0].split('/');
-                    if (dateParts.length < 3) return 0;
-
-                    const timeParts = parts[1] ? parts[1].split(':') : ['00', '00'];
-                    const d = new Date(
-                        parseInt(dateParts[2]),
-                        parseInt(dateParts[1]) - 1,
-                        parseInt(dateParts[0]),
-                        parseInt(timeParts[0] || '0'),
-                        parseInt(timeParts[1] || '0')
-                    );
-                    return d.getTime();
-                } catch (e) {
-                    return 0;
-                }
-            };
-
-            // Group by Client + Account + Ticker
+            // 4. Group by Account + Ticker (Client is usually implicit in account)
             const groups: { [key: string]: TradeRecord[] } = {};
             normalizedData.forEach(record => {
                 const key = `${record.conta}-${record.papel}`;
@@ -140,29 +172,34 @@ const PerformanceAnalysis: React.FC = () => {
 
             const allOperations: Operation[] = [];
 
-            // FIFO Logic for each group
+            // 5. FIFO Logic for each group
             Object.keys(groups).forEach(key => {
+                // IMPORTANT: Sort by absolute timestamp before matching
                 const records = groups[key].sort((a, b) => parseFullDate(a.dataHora) - parseFullDate(b.dataHora));
 
-                const buys: { qty: number, price: number, date: string, dataHora: string }[] = [];
-                const sells: { qty: number, price: number, date: string, dataHora: string }[] = [];
+                const buys: { qty: number, price: number, date: string, dataHora: string, volume: number }[] = [];
+                const sells: { qty: number, price: number, date: string, dataHora: string, volume: number }[] = [];
 
                 records.forEach(r => {
                     const qty = r.quantidade;
                     const price = r.precoMedio;
                     const date = r.data;
                     const dataHora = r.dataHora;
+                    const volume = r.volume || (qty * price);
 
                     if (qty <= 0) return;
 
                     if (r.cv === 'C') {
                         let remainingQty = qty;
+                        // Match against open sells (Short Cover)
                         while (remainingQty > 0 && sells.length > 0) {
                             const sell = sells[0];
                             const matchQty = Math.min(remainingQty, sell.qty);
 
-                            const resultBrRL = (sell.price - price) * matchQty;
-                            const resultPercent = price === 0 ? 0 : ((sell.price / price) - 1) * 100;
+                            const matchEntryPrice = sell.price;
+                            const matchExitPrice = price;
+                            const resultBrRL = (matchEntryPrice - matchExitPrice) * matchQty;
+                            const resultPercent = matchEntryPrice === 0 ? 0 : ((matchEntryPrice / matchExitPrice) - 1) * 100;
 
                             allOperations.push({
                                 id: Math.random().toString(36).substr(2, 9),
@@ -171,13 +208,13 @@ const PerformanceAnalysis: React.FC = () => {
                                 conta: r.conta,
                                 entryDate: sell.date,
                                 exitDate: r.data,
-                                entryPrice: sell.price,
-                                exitPrice: price,
+                                entryPrice: matchEntryPrice,
+                                exitPrice: matchExitPrice,
                                 quantity: matchQty,
-                                volume: matchQty * sell.price,
+                                volume: (matchQty * matchEntryPrice) + (matchQty * matchExitPrice),
                                 resultBrRL,
                                 resultPercent,
-                                durationDays: Math.max(0, Math.ceil(Math.abs(parseFullDate(r.dataHora) - parseFullDate(sell.dataHora)) / (1000 * 60 * 60 * 24))),
+                                durationDays: Math.max(0, Math.ceil(Math.abs(parseFullDate(dataHora) - parseFullDate(sell.dataHora)) / (1000 * 60 * 60 * 24))),
                                 side: 'Short'
                             });
 
@@ -185,15 +222,18 @@ const PerformanceAnalysis: React.FC = () => {
                             sell.qty -= matchQty;
                             if (sell.qty <= 0) sells.shift();
                         }
-                        if (remainingQty > 0) buys.push({ qty: remainingQty, price, date, dataHora });
+                        if (remainingQty > 0) buys.push({ qty: remainingQty, price, date, dataHora, volume: (remainingQty * price) });
                     } else {
                         let remainingQty = qty;
+                        // Match against open buys (Long Close)
                         while (remainingQty > 0 && buys.length > 0) {
                             const buy = buys[0];
                             const matchQty = Math.min(remainingQty, buy.qty);
 
-                            const resultBrRL = (price - buy.price) * matchQty;
-                            const resultPercent = buy.price === 0 ? 0 : ((price / buy.price) - 1) * 100;
+                            const matchEntryPrice = buy.price;
+                            const matchExitPrice = price;
+                            const resultBrRL = (matchExitPrice - matchEntryPrice) * matchQty;
+                            const resultPercent = matchEntryPrice === 0 ? 0 : ((matchExitPrice / matchEntryPrice) - 1) * 100;
 
                             allOperations.push({
                                 id: Math.random().toString(36).substr(2, 9),
@@ -202,13 +242,13 @@ const PerformanceAnalysis: React.FC = () => {
                                 conta: r.conta,
                                 entryDate: buy.date,
                                 exitDate: r.data,
-                                entryPrice: buy.price,
-                                exitPrice: price,
+                                entryPrice: matchEntryPrice,
+                                exitPrice: matchExitPrice,
                                 quantity: matchQty,
-                                volume: matchQty * buy.price,
+                                volume: (matchQty * matchEntryPrice) + (matchQty * matchExitPrice),
                                 resultBrRL,
                                 resultPercent,
-                                durationDays: Math.max(0, Math.ceil(Math.abs(parseFullDate(r.dataHora) - parseFullDate(buy.dataHora)) / (1000 * 60 * 60 * 24))),
+                                durationDays: Math.max(0, Math.ceil(Math.abs(parseFullDate(dataHora) - parseFullDate(buy.dataHora)) / (1000 * 60 * 60 * 24))),
                                 side: 'Long'
                             });
 
@@ -216,43 +256,53 @@ const PerformanceAnalysis: React.FC = () => {
                             buy.qty -= matchQty;
                             if (buy.qty <= 0) buys.shift();
                         }
-                        if (remainingQty > 0) sells.push({ qty: remainingQty, price, date, dataHora });
+                        if (remainingQty > 0) sells.push({ qty: remainingQty, price, date, dataHora, volume: (remainingQty * price) });
                     }
                 });
             });
 
-            setOperations(allOperations);
+            // 6. Global Sorting by Exit Date
+            const sortedOps = allOperations.sort((a, b) => parseFullDate(a.exitDate) - parseFullDate(b.exitDate));
+            setOperations(sortedOps);
 
-            // Calculate Summary
-            if (allOperations.length > 0) {
-                const totalResult = allOperations.reduce((sum, op) => sum + op.resultBrRL, 0);
-                const totalVolume = allOperations.reduce((sum, op) => sum + op.volume, 0);
-                const winRate = (allOperations.filter(op => op.resultBrRL > 0).length / allOperations.length) * 100;
-                const avgReturn = allOperations.reduce((sum, op) => sum + op.resultPercent, 0) / allOperations.length;
+            // 7. Calculate Summary KPIs
+            if (sortedOps.length > 0) {
+                const totalResult = sortedOps.reduce((sum, op) => sum + op.resultBrRL, 0);
+                const totalVolume = sortedOps.reduce((sum, op) => sum + op.volume, 0);
+                const winRate = (sortedOps.filter(op => op.resultBrRL > 0).length / sortedOps.length) * 100;
+                const avgReturn = sortedOps.reduce((sum, op) => sum + op.resultPercent, 0) / sortedOps.length;
 
-                // Weighted Average
-                const weightedAvg = allOperations.reduce((sum, op) => sum + (op.resultPercent * op.volume), 0) / totalVolume;
+                // Weighted Return: sum(resultPercent * volume) / sum(volume)
+                const weightedAvg = totalVolume === 0 ? 0 : sortedOps.reduce((sum, op) => sum + (op.resultPercent * op.volume), 0) / totalVolume;
 
-                // Drawdown
-                let maxBalance = 0;
+                // Drawdown Calculation
+                let maxEquity = 0;
+                let currentEquity = 0;
                 let maxDD = 0;
-                let currentBalance = 0;
-                allOperations.forEach(op => {
-                    currentBalance += op.resultBrRL;
-                    if (currentBalance > maxBalance) maxBalance = currentBalance;
-                    const dd = maxBalance <= 0 ? 0 : (maxBalance - currentBalance) / maxBalance;
-                    if (dd > maxDD) maxDD = dd;
+
+                sortedOps.forEach(op => {
+                    currentEquity += op.resultBrRL;
+                    if (currentEquity > maxEquity) maxEquity = currentEquity;
+
+                    // Drawdown = (Current Equity - Peak) / Peak (only if peak > 0)
+                    // Simplification: if equity is below its all-time high
+                    if (maxEquity > 0) {
+                        const dd = (maxEquity - currentEquity) / maxEquity;
+                        if (dd > maxDD) maxDD = dd;
+                    }
                 });
 
                 setSummary({
                     totalResultBrRL: totalResult,
                     averageReturnPercent: avgReturn,
                     weightedAverageReturnPercent: weightedAvg,
-                    totalOperations: allOperations.length,
+                    totalOperations: sortedOps.length,
                     winRate,
                     totalVolume,
                     drawdown: maxDD * 100
                 });
+            } else {
+                setSummary(null);
             }
 
         } catch (error) {
