@@ -170,9 +170,16 @@ const ApprovalsLayout: React.FC<ApprovalsLayoutProps> = ({
                         <span className="material-icons-outlined text-slate-200 dark:text-slate-800 text-[60px]">group_work</span>
                     </div>
                     <h2 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter mb-4 italic">Bem-vindo à Fila de Disparo</h2>
-                    <p className="text-slate-400 dark:text-slate-500 max-w-md font-medium">
-                        Selecione um cliente na barra lateral para carregar a carteira e gerenciar as aprovações de ordens estruturadas.
+                    <p className="text-slate-400 dark:text-slate-500 max-w-md font-medium mb-10">
+                        Selecione um cliente na barra lateral ou utilize a busca mestre abaixo para carregar a carteira e gerenciar as aprovações.
                     </p>
+                    <div className="w-full max-w-lg bg-white dark:bg-card-dark p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-2xl dark:shadow-none">
+                        <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase mb-4 tracking-[0.2em]">Busca Master no Cadastro</label>
+                        <ClientSearch
+                            placeholder="Pesquisar por Nome, Conta ou Cod Bolsa..."
+                            onSelect={onAddClientFromMaster}
+                        />
+                    </div>
                 </div>
             )}
         </div>
