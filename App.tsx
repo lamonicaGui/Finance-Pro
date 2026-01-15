@@ -473,6 +473,11 @@ const App: React.FC = () => {
                 <span className="material-icons-outlined text-[18px]">analytics</span>
                 <span className="text-[11px] font-black uppercase tracking-tighter">Análise Performance</span>
               </button>
+              <div className="mt-auto pt-6 px-1 flex flex-col gap-2">
+                <div className="text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-[0.2em] text-center mb-2">
+                  FinancePro v4.0.0
+                </div>
+              </div>
             </nav>
           </div>
 
