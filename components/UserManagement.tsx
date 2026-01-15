@@ -105,6 +105,22 @@ const UserManagement: React.FC = () => {
         }
     };
 
+    const handlePasswordReset = async (email: string) => {
+        if (!confirm(`Deseja enviar um link de redefinição de senha para ${email}?`)) return;
+
+        setIsActionLoading(true);
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+            redirectTo: window.location.origin,
+        });
+
+        if (error) {
+            alert(`Erro ao enviar link de redefinição: ${error.message}`);
+        } else {
+            alert('Link de redefinição enviado com sucesso para o e-mail do usuário.');
+        }
+        setIsActionLoading(false);
+    };
+
     const deleteUser = async (userId: string, email: string) => {
         if (!confirm(`Tem certeza que deseja EXCLUIR permanentemente o perfil de ${email}? Ele perderá todo o acesso imediatamente.`)) return;
 
@@ -226,11 +242,19 @@ const UserManagement: React.FC = () => {
                                             </button>
                                         </td>
                                         <td className="px-8 py-6 text-right">
-                                            <div className="flex items-center justify-end gap-2">
+                                            <div className="flex items-center justify-end gap-2 text-slate-400">
+                                                <button
+                                                    onClick={() => handlePasswordReset(profile.email || '')}
+                                                    disabled={isActionLoading}
+                                                    className="h-10 w-10 flex items-center justify-center rounded-xl hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-all"
+                                                    title="Redefinir Senha"
+                                                >
+                                                    <span className="material-symbols-outlined text-lg">lock_reset</span>
+                                                </button>
                                                 <button
                                                     onClick={() => deleteUser(profile.id, profile.email || '')}
                                                     disabled={isActionLoading}
-                                                    className="h-10 w-10 flex items-center justify-center rounded-xl text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all group-hover:bg-slate-50 dark:group-hover:bg-slate-800"
+                                                    className="h-10 w-10 flex items-center justify-center rounded-xl hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all"
                                                     title="Excluir Definitivamente"
                                                 >
                                                     <span className="material-symbols-outlined text-lg">delete_forever</span>
