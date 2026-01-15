@@ -517,11 +517,11 @@ const App: React.FC = () => {
               <div className="space-y-3">
                 <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest px-1">Ações Rápidas</h3>
 
-                <div className="px-1 relative z-50">
+                <div className="px-1 relative z-50 min-h-[44px]">
                   <ClientSearch
                     placeholder="Adicionar por Busca..."
                     onSelect={addClientFromMaster}
-                    className="w-full mb-3"
+                    className="w-full h-full"
                   />
                 </div>
 

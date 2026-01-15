@@ -92,6 +92,7 @@ const ApprovalsLayout: React.FC<ApprovalsLayoutProps> = ({
                                 <div>
                                     <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase mb-2 tracking-widest">Conta / Sinacor</label>
                                     <ClientSearch
+                                        key={selectedClient.id + "-account"}
                                         initialValue={localAccount}
                                         showHeaderStyle
                                         placeholder="Conta..."
@@ -107,6 +108,7 @@ const ApprovalsLayout: React.FC<ApprovalsLayoutProps> = ({
                                 <div>
                                     <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase mb-2 tracking-widest">Nome do Cliente</label>
                                     <ClientSearch
+                                        key={selectedClient.id + "-name"}
                                         initialValue={localName}
                                         showHeaderStyle
                                         placeholder="Nome..."

@@ -3,9 +3,11 @@ import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 import {
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-    BarChart, Bar, Cell, PieChart, Pie, Legend
+    BarChart, Bar, Cell, PieChart, Pie, Legend, Area, AreaChart
 } from 'recharts';
 import { TradeRecord, Operation, PerformanceSummary } from '../types';
+import { supabase } from '../services/supabase';
+import { useEffect } from 'react';
 
 // Helper to format currency
 const formatCurrency = (value: number) => {
@@ -79,6 +81,84 @@ const PerformanceAnalysis: React.FC = () => {
     const [isProcessing, setIsProcessing] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const reportRef = useRef<HTMLDivElement>(null);
+
+    // Filter states
+    const [clientsList, setClientsList] = useState<string[]>([]);
+    const [tickersList, setTickersList] = useState<string[]>([]);
+    const [selectedClient, setSelectedClient] = useState('');
+    const [selectedTicker, setSelectedTicker] = useState('');
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+
+    // Load initial filter options
+    useEffect(() => {
+        const loadFilters = async () => {
+            const { data: clientsData } = await supabase
+                .from('executed_orders')
+                .select('Cliente')
+                .not('Cliente', 'is', null);
+
+            if (clientsData) {
+                const uniqueClients = Array.from(new Set(clientsData.map(c => c.Cliente))).sort();
+                setClientsList(uniqueClients);
+            }
+
+            const { data: tickersData } = await supabase
+                .from('executed_orders')
+                .select('Papel')
+                .not('Papel', 'is', null);
+
+            if (tickersData) {
+                const uniqueTickers = Array.from(new Set(tickersData.map(t => t.Papel))).sort();
+                setTickersList(uniqueTickers);
+            }
+        };
+        loadFilters();
+    }, []);
+
+    const fetchDataFromSupabase = async () => {
+        setIsProcessing(true);
+        try {
+            let query = supabase.from('executed_orders').select('*');
+
+            if (selectedClient) {
+                query = query.eq('Cliente', selectedClient);
+            }
+            if (selectedTicker) {
+                query = query.eq('Papel', selectedTicker);
+            }
+            if (startDate) {
+                query = query.gte('Data', startDate);
+            }
+            if (endDate) {
+                query = query.lte('Data', endDate);
+            }
+
+            const { data, error } = await query;
+
+            if (error) {
+                console.error("Error fetching data:", error);
+                alert("Erro ao buscar dados do Supabase.");
+                return;
+            }
+
+            if (!data || data.length === 0) {
+                alert("Nenhuma ordem encontrada para os filtros selecionados.");
+                setOperations([]);
+                setSummary(null);
+                return;
+            }
+
+            // Map DB columns to TradeRecord logic
+            // The DB has "Data", "Papel", "C/V", "Qtd. Exec.", "Prc. Médio", "Data / Hora", "Volume", etc.
+            processRawData(data);
+        } catch (err) {
+            console.error("Supabase fetch error:", err);
+            alert("Erro inesperado ao buscar dados.");
+        } finally {
+            setIsProcessing(false);
+        }
+    };
 
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -394,59 +474,149 @@ const PerformanceAnalysis: React.FC = () => {
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500 -mt-10">
-            {/* Upload Header */}
-            <div className="bg-white dark:bg-card-dark rounded-[2.5rem] p-8 shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-800 flex flex-col md:flex-row items-center justify-between gap-6">
-                <div className="flex items-center gap-4">
-                    <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
-                        <span className="material-symbols-outlined text-4xl">upload_file</span>
-                    </div>
-                    <div>
-                        <h2 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Importar Operações</h2>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">Selecione uma planilha (XLSX ou CSV) para iniciar a análise.</p>
-                    </div>
-                </div>
+            {/* Filter & Source Header */}
+            <div className="bg-white dark:bg-card-dark rounded-[3rem] p-10 shadow-2xl shadow-slate-200/40 dark:shadow-none border border-slate-100 dark:border-slate-800 relative overflow-hidden group">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl group-hover:bg-primary/10 transition-all duration-700"></div>
 
-                <div className="flex items-center gap-4">
-                    <input
-                        type="file"
-                        ref={fileInputRef}
-                        onChange={handleFileUpload}
-                        accept=".xlsx,.xls,.csv"
-                        className="hidden"
-                    />
-                    <button
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={isProcessing}
-                        className="px-8 py-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-black uppercase text-xs tracking-wider hover:bg-slate-200 dark:hover:bg-slate-700 transition-all flex items-center gap-2"
-                    >
-                        {isProcessing ? (
-                            <span className="material-symbols-outlined animate-spin">progress_activity</span>
-                        ) : (
-                            <span className="material-symbols-outlined">add_circle</span>
-                        )}
-                        Selecionar Arquivo
-                    </button>
+                <div className="relative z-10 flex flex-col gap-8">
+                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                        <div className="flex items-center gap-5">
+                            <div className="h-16 w-16 rounded-[1.5rem] bg-slate-900 border border-slate-800 flex items-center justify-center text-primary shadow-lg shadow-primary/10">
+                                <span className="material-symbols-outlined text-3xl">analytics</span>
+                            </div>
+                            <div>
+                                <h2 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Análise Consolidada</h2>
+                                <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">Filtre dados do banco ou importe uma nova planilha.</p>
+                            </div>
+                        </div>
 
-                    {operations.length > 0 && (
-                        <button
-                            onClick={handleExportPDF}
-                            className="px-8 py-3 rounded-xl bg-primary text-white font-black uppercase text-xs tracking-wider hover:brightness-110 transition-all flex items-center gap-2 shadow-lg shadow-primary/20"
-                        >
-                            <span className="material-symbols-outlined">picture_as_pdf</span>
-                            Exportar PDF
-                        </button>
-                    )}
+                        <div className="flex items-center gap-3">
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                onChange={handleFileUpload}
+                                accept=".xlsx,.xls,.csv"
+                                className="hidden"
+                            />
+                            <button
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={isProcessing}
+                                className="h-12 px-6 rounded-xl bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 font-black uppercase text-[10px] tracking-widest hover:bg-slate-100 dark:hover:bg-slate-800 transition-all flex items-center gap-2 border border-slate-100 dark:border-slate-700"
+                                title="Importar arquivo manual"
+                            >
+                                <span className="material-symbols-outlined text-lg">upload_file</span>
+                                Importar CSV
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Filters Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-50/50 dark:bg-slate-900/30 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Cliente</label>
+                            <select
+                                value={selectedClient}
+                                onChange={(e) => setSelectedClient(e.target.value)}
+                                className="w-full h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all appearance-none cursor-pointer"
+                            >
+                                <option value="">Todos os Clientes</option>
+                                {clientsList.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Ativo (Papel)</label>
+                            <select
+                                value={selectedTicker}
+                                onChange={(e) => setSelectedTicker(e.target.value)}
+                                className="w-full h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all appearance-none cursor-pointer"
+                            >
+                                <option value="">Todos os Ativos</option>
+                                {tickersList.map(t => <option key={t} value={t}>{t}</option>)}
+                            </select>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Data Inicial</label>
+                            <input
+                                type="date"
+                                value={startDate}
+                                onChange={(e) => setStartDate(e.target.value)}
+                                className="w-full h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Data Final</label>
+                            <div className="flex gap-2">
+                                <input
+                                    type="date"
+                                    value={endDate}
+                                    onChange={(e) => setEndDate(e.target.value)}
+                                    className="flex-1 h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                                />
+                                <button
+                                    onClick={fetchDataFromSupabase}
+                                    disabled={isProcessing}
+                                    className="h-12 px-6 rounded-xl bg-primary text-white font-black uppercase text-xs tracking-wider shadow-lg shadow-primary/20 hover:brightness-110 active:scale-95 transition-all flex items-center justify-center disabled:opacity-50"
+                                >
+                                    {isProcessing ? <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span> : 'Filtrar'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
+            {/* Empty State */}
+            {operations.length === 0 && !isProcessing && (
+                <div className="bg-white dark:bg-card-dark rounded-[3rem] p-24 border border-slate-100 dark:border-slate-800 flex flex-col items-center justify-center text-center group transition-all">
+                    <div className="h-32 w-32 rounded-[2.5rem] bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 flex items-center justify-center text-slate-200 dark:text-slate-700 mb-8 group-hover:scale-110 group-hover:rotate-6 transition-all duration-500">
+                        <span className="material-symbols-outlined text-6xl">query_stats</span>
+                    </div>
+                    <h3 className="text-2xl font-black text-slate-800 dark:text-white uppercase mb-4 tracking-tight italic">Sua análise aparecerá aqui</h3>
+                    <p className="text-slate-500 dark:text-slate-400 max-w-md font-medium leading-relaxed">Selecione filtros acima ou faça upload de um arquivo para visualizar métricas, rentabilidade e estatísticas.</p>
+
+                    {(selectedClient || selectedTicker || startDate || endDate) && (
+                        <button
+                            onClick={() => {
+                                setSelectedClient('');
+                                setSelectedTicker('');
+                                setStartDate('');
+                                setEndDate('');
+                            }}
+                            className="mt-8 text-[10px] font-black text-primary uppercase tracking-[0.2em] hover:underline"
+                        >
+                            Limpar filtros selecionados
+                        </button>
+                    )}
+                </div>
+            )}
+
+            {/* Performance Report */}
             {operations.length > 0 && summary && (
                 <div ref={reportRef} className="space-y-8 pb-10">
+                    {/* Header Actions */}
+                    <div className="flex justify-between items-center bg-white dark:bg-card-dark rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none mb-4">
+                        <div>
+                            <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase italic tracking-tight">Métricas de Performance</h3>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{summary.totalOperations} Operações Identificadas</p>
+                        </div>
+                        <button
+                            onClick={handleExportPDF}
+                            className="px-8 py-4 rounded-xl bg-slate-900 dark:bg-primary text-primary dark:text-white font-black uppercase text-[10px] tracking-[0.2em] hover:brightness-110 active:scale-95 transition-all flex items-center gap-2 shadow-2xl shadow-primary/20"
+                        >
+                            <span className="material-symbols-outlined text-lg">picture_as_pdf</span>
+                            Exportar Relatório
+                        </button>
+                    </div>
+
                     {/* KPI Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                         {[
                             { label: 'Resultado Total', value: formatCurrency(summary.totalResultBrRL), subLabel: `Volume: ${formatCurrency(summary.totalVolume)}`, icon: 'payments', pos: summary.totalResultBrRL >= 0 },
                             { label: 'Rentabilidade (Ponderada)', value: formatPercent(summary.weightedAverageReturnPercent), subLabel: `Média Simples: ${formatPercent(summary.averageReturnPercent)}`, icon: 'query_stats', pos: summary.weightedAverageReturnPercent >= 0 },
-                            { label: 'Taxa de Acerto', value: formatPercent(summary.winRate), subLabel: `${operations.filter(op => op.resultBrRL > 0).length} de ${summary.totalOperations} Trades`, icon: 'done_all' },
+                            { label: 'Taxa de Acerto', value: formatPercent(summary.winRate), subLabel: `${operations.filter(op => op.resultBrRL > 0).length} de ${summary.totalOperations} trades`, icon: 'done_all' },
                             { label: 'Max Drawdown', value: formatPercent(summary.drawdown || 0), subLabel: 'Risco da Estratégia', icon: 'trending_down', neg: true }
                         ].map((kpi, i) => (
                             <div key={i} className="bg-white dark:bg-card-dark rounded-[2rem] p-6 border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none">
@@ -468,7 +638,13 @@ const PerformanceAnalysis: React.FC = () => {
                             <h4 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-8">Evolução do Patrimônio (R$)</h4>
                             <div className="h-[300px] w-full">
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <LineChart data={equityCurveData}>
+                                    <AreaChart data={equityCurveData}>
+                                        <defs>
+                                            <linearGradient id="colorBalance" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                                                <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                                            </linearGradient>
+                                        </defs>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" className="dark:stroke-slate-800" />
                                         <XAxis
                                             dataKey="name"
@@ -481,22 +657,22 @@ const PerformanceAnalysis: React.FC = () => {
                                             axisLine={false}
                                             tickLine={false}
                                             tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }}
-                                            tickFormatter={(val) => `R$ ${val >= 1000 ? (val / 1000).toFixed(0) + 'k' : val}`}
+                                            tickFormatter={(val) => `R$ ${Math.abs(val) >= 1000 ? (val / 1000).toFixed(0) + 'k' : val}`}
                                         />
                                         <Tooltip
                                             contentStyle={{ backgroundColor: 'white', borderRadius: '16px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' }}
                                             labelStyle={{ fontWeight: 900, fontSize: '12px', marginBottom: '8px' }}
                                             formatter={(value: number) => [formatCurrency(value), 'Resultado Acumulado']}
                                         />
-                                        <Line
+                                        <Area
                                             type="monotone"
                                             dataKey="balance"
                                             stroke="#10b981"
                                             strokeWidth={4}
-                                            dot={false}
-                                            activeDot={{ r: 6, stroke: '#fff', strokeWidth: 3 }}
+                                            fillOpacity={1}
+                                            fill="url(#colorBalance)"
                                         />
-                                    </LineChart>
+                                    </AreaChart>
                                 </ResponsiveContainer>
                             </div>
                         </div>
@@ -557,19 +733,19 @@ const PerformanceAnalysis: React.FC = () => {
                                             <td className="px-8 py-5">
                                                 <div className="flex flex-col">
                                                     <span className="text-sm font-black text-slate-800 dark:text-white uppercase leading-tight">{op.ticker}</span>
-                                                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">{op.cliente} ({op.conta})</span>
+                                                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tighter truncate max-w-[200px]">{op.cliente} ({op.conta})</span>
                                                 </div>
                                             </td>
                                             <td className="px-8 py-5">
                                                 <div className="flex flex-col">
-                                                    <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase">IN: {op.entryDate}</span>
-                                                    <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase">OUT: {op.exitDate}</span>
+                                                    <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-tighter">IN: {op.entryDate}</span>
+                                                    <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-tighter">OUT: {op.exitDate}</span>
                                                 </div>
                                             </td>
                                             <td className="px-8 py-5">
                                                 <div className="flex flex-col">
-                                                    <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase">Compra: {formatCurrency(op.entryPrice)}</span>
-                                                    <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase">Venda: {formatCurrency(op.exitPrice)}</span>
+                                                    <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-tighter">Compra: {formatCurrency(op.entryPrice)}</span>
+                                                    <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-tighter">Venda: {formatCurrency(op.exitPrice)}</span>
                                                 </div>
                                             </td>
                                             <td className="px-8 py-5 text-center">
@@ -590,16 +766,6 @@ const PerformanceAnalysis: React.FC = () => {
                             </table>
                         </div>
                     </div>
-                </div>
-            )}
-
-            {!operations.length && !isProcessing && (
-                <div className="bg-white dark:bg-card-dark rounded-[2.5rem] p-16 border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none flex flex-col items-center justify-center text-center">
-                    <div className="h-24 w-24 rounded-full bg-slate-50 dark:bg-slate-800 flex items-center justify-center mb-6">
-                        <span className="material-symbols-outlined text-5xl text-slate-200 dark:text-slate-700">analytics</span>
-                    </div>
-                    <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase mb-2 tracking-tight italic">Sua análise aparecerá aqui</h3>
-                    <p className="text-slate-400 dark:text-slate-500 max-w-md font-medium text-sm">Faça o upload de uma planilha de operações para visualizar métricas de performance, rentabilidade e estatísticas detalhadas.</p>
                 </div>
             )}
         </div>
