@@ -21,6 +21,23 @@ const formatPercent = (value: number) => {
     return `${value.toFixed(2)}%`;
 };
 
+// Helper to format date to PT-BR (DD/MM/YYYY)
+const formatDateToBR = (dateStr: string) => {
+    if (!dateStr) return '-';
+    // If it's already in DD/MM/YYYY hh:mm:ss, just take the date part if needed or return as is
+    if (dateStr.includes('/') && dateStr.split('/').length === 3) {
+        return dateStr.split(' ')[0];
+    }
+    // If it's YYYY-MM-DD
+    if (dateStr.includes('-')) {
+        const parts = dateStr.split('-');
+        if (parts[0].length === 4) {
+            return `${parts[2]}/${parts[1]}/${parts[0]}`;
+        }
+    }
+    return dateStr;
+};
+
 // Helpers de normalização ultra-robustos
 const normalizeStr = (s: string) =>
     String(s || '').toLowerCase()
@@ -91,6 +108,12 @@ const PerformanceAnalysis: React.FC = () => {
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
 
+    // Sorting state
+    const [sortConfig, setSortConfig] = useState<{ key: keyof Operation | 'none'; direction: 'asc' | 'desc' }>({
+        key: 'none',
+        direction: 'desc'
+    });
+
     // Load initial clients list
     useEffect(() => {
         const loadClients = async () => {
@@ -134,6 +157,36 @@ const PerformanceAnalysis: React.FC = () => {
         };
         loadTickers();
     }, [selectedClient]);
+
+    const handleSort = (key: keyof Operation) => {
+        let direction: 'asc' | 'desc' = 'asc';
+        if (sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+    };
+
+    const getSortedOperations = () => {
+        if (sortConfig.key === 'none') return operations;
+
+        return [...operations].sort((a, b) => {
+            const aValue = a[sortConfig.key as keyof Operation];
+            const bValue = b[sortConfig.key as keyof Operation];
+
+            if (aValue === bValue) return 0;
+
+            let result = 0;
+            if (typeof aValue === 'number' && typeof bValue === 'number') {
+                result = aValue - bValue;
+            } else {
+                result = String(aValue).localeCompare(String(bValue));
+            }
+
+            return sortConfig.direction === 'asc' ? result : -result;
+        });
+    };
+
+    const sortedOperations = getSortedOperations();
 
     const fetchDataFromSupabase = async () => {
         setIsProcessing(true);
@@ -752,43 +805,45 @@ const PerformanceAnalysis: React.FC = () => {
                             <table className="w-full text-left border-collapse">
                                 <thead>
                                     <tr className="border-b border-slate-50 dark:border-slate-800">
-                                        <th className="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Ativo</th>
-                                        <th className="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Entrada / Saída</th>
-                                        <th className="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Preços</th>
-                                        <th className="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Quantidade</th>
-                                        <th className="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-right">Resultado (R$)</th>
-                                        <th className="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-right">Resultado (%)</th>
+                                        <th onClick={() => handleSort('ticker')} className="px-6 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest cursor-pointer hover:text-primary transition-colors">Ativo</th>
+                                        <th onClick={() => handleSort('entryDate')} className="px-6 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest cursor-pointer hover:text-primary transition-colors">Entrada</th>
+                                        <th onClick={() => handleSort('exitDate')} className="px-6 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest cursor-pointer hover:text-primary transition-colors">Saída</th>
+                                        <th onClick={() => handleSort('entryPrice')} className="px-6 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest cursor-pointer hover:text-primary transition-colors text-right">Preço Entrada</th>
+                                        <th onClick={() => handleSort('exitPrice')} className="px-6 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest cursor-pointer hover:text-primary transition-colors text-right">Preço Saída</th>
+                                        <th onClick={() => handleSort('quantity')} className="px-6 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest cursor-pointer hover:text-primary transition-colors text-center">Quantidade</th>
+                                        <th onClick={() => handleSort('resultBrRL')} className="px-6 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest cursor-pointer hover:text-primary transition-colors text-right">Resultado (R$)</th>
+                                        <th onClick={() => handleSort('resultPercent')} className="px-6 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest cursor-pointer hover:text-primary transition-colors text-right">Resultado (%)</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
-                                    {operations.map((op) => (
+                                    {sortedOperations.map((op) => (
                                         <tr key={op.id} className="hover:bg-slate-50/30 dark:hover:bg-slate-800/20 transition-colors group">
-                                            <td className="px-8 py-5">
+                                            <td className="px-6 py-5">
                                                 <div className="flex flex-col">
                                                     <span className="text-sm font-black text-slate-800 dark:text-white uppercase leading-tight">{op.ticker}</span>
-                                                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tighter truncate max-w-[200px]">{op.cliente} ({op.conta})</span>
+                                                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tighter truncate max-w-[150px]">{op.cliente}</span>
                                                 </div>
                                             </td>
-                                            <td className="px-8 py-5">
-                                                <div className="flex flex-col">
-                                                    <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-tighter">IN: {op.entryDate}</span>
-                                                    <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-tighter">OUT: {op.exitDate}</span>
-                                                </div>
+                                            <td className="px-6 py-5 text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-tighter">
+                                                {formatDateToBR(op.entryDate)}
                                             </td>
-                                            <td className="px-8 py-5">
-                                                <div className="flex flex-col">
-                                                    <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-tighter">Compra: {formatCurrency(op.entryPrice)}</span>
-                                                    <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-tighter">Venda: {formatCurrency(op.exitPrice)}</span>
-                                                </div>
+                                            <td className="px-6 py-5 text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-tighter">
+                                                {formatDateToBR(op.exitDate)}
                                             </td>
-                                            <td className="px-8 py-5 text-center">
+                                            <td className="px-6 py-5 text-right text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                                                {formatCurrency(op.entryPrice)}
+                                            </td>
+                                            <td className="px-6 py-5 text-right text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                                                {formatCurrency(op.exitPrice)}
+                                            </td>
+                                            <td className="px-6 py-5 text-center">
                                                 <span className="text-[11px] font-black text-slate-700 dark:text-slate-200">{op.quantity}</span>
                                                 <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">{op.side}</p>
                                             </td>
-                                            <td className={`px-8 py-5 text-right font-black text-sm ${op.resultBrRL >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                            <td className={`px-6 py-5 text-right font-black text-sm ${op.resultBrRL >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
                                                 {formatCurrency(op.resultBrRL)}
                                             </td>
-                                            <td className="px-8 py-5 text-right">
+                                            <td className="px-6 py-5 text-right">
                                                 <span className={`inline-flex items-center px-4 py-1.5 rounded-full text-[10px] font-black ${op.resultPercent >= 0 ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600' : 'bg-red-50 dark:bg-red-500/10 text-red-500'}`}>
                                                     {op.resultPercent >= 0 ? '+' : ''}{formatPercent(op.resultPercent)}
                                                 </span>
