@@ -95,21 +95,21 @@ const PerformanceAnalysis: React.FC = () => {
         const loadFilters = async () => {
             const { data: clientsData } = await supabase
                 .from('executed_orders')
-                .select('Cliente')
-                .not('Cliente', 'is', null);
+                .select('cliente')
+                .not('cliente', 'is', null);
 
             if (clientsData) {
-                const uniqueClients = Array.from(new Set(clientsData.map(c => c.Cliente))).sort();
+                const uniqueClients = Array.from(new Set(clientsData.map(c => c.cliente))).sort();
                 setClientsList(uniqueClients);
             }
 
             const { data: tickersData } = await supabase
                 .from('executed_orders')
-                .select('Papel')
-                .not('Papel', 'is', null);
+                .select('papel')
+                .not('papel', 'is', null);
 
             if (tickersData) {
-                const uniqueTickers = Array.from(new Set(tickersData.map(t => t.Papel))).sort();
+                const uniqueTickers = Array.from(new Set(tickersData.map(t => t.papel))).sort();
                 setTickersList(uniqueTickers);
             }
         };
@@ -122,16 +122,16 @@ const PerformanceAnalysis: React.FC = () => {
             let query = supabase.from('executed_orders').select('*');
 
             if (selectedClient) {
-                query = query.eq('Cliente', selectedClient);
+                query = query.eq('cliente', selectedClient);
             }
             if (selectedTicker) {
-                query = query.eq('Papel', selectedTicker);
+                query = query.eq('papel', selectedTicker);
             }
             if (startDate) {
-                query = query.gte('Data', startDate);
+                query = query.gte('data', startDate);
             }
             if (endDate) {
-                query = query.lte('Data', endDate);
+                query = query.lte('data', endDate);
             }
 
             const { data, error } = await query;
@@ -252,20 +252,20 @@ const PerformanceAnalysis: React.FC = () => {
                     return softKey !== undefined ? item[softKey] : undefined;
                 };
 
-                const rawData = getRaw(['Data', 'Data Operação', 'Data Operacao', 'Date', 'Trade Date']);
-                const rawPapel = getRaw(['Papel', 'Ativo', 'Ticker', 'Symbol', 'Ativos', 'Ação', 'Acao']);
-                const rawCV = getRaw(['C/V', 'CV', 'C', 'V', 'Operação', 'Operacao', 'Lado', 'Side', 'Tipo', 'Compra/Venda']);
-                const rawQtd = getRaw(['Qtd. Exec.', 'Qtd. Exe', 'Quantidade Executada', 'Quantidade', 'Qtd', 'Qtde', 'Quantity', 'Volume Qtd']);
-                const rawPreco = getRaw(['Prc. Médio', 'Prc. Méd', 'Preço Médio', 'Preço', 'Preco', 'Pm', 'Price', 'Avg Price']);
-                const rawStatus = getRaw(['Status', 'Status da Ordem', 'Order Status']);
-                const rawDataHora = getRaw(['Data / Hora', 'Data/Hora', 'Timestamp', 'Date Time']);
-                const rawVolume = getRaw(['Volume', 'Volume Financeiro', 'Financeiro', 'Total']);
-                const rawConta = getRaw(['Conta', 'Account', 'Cta']);
+                const rawData = getRaw(['data', 'Data', 'Data Operação', 'Data Operacao', 'Date', 'Trade Date']);
+                const rawPapel = getRaw(['papel', 'Papel', 'Ativo', 'Ticker', 'Symbol', 'Ativos', 'Ação', 'Acao']);
+                const rawCV = getRaw(['cv', 'C/V', 'CV', 'C', 'V', 'Operação', 'Operacao', 'Lado', 'Side', 'Tipo', 'Compra/Venda']);
+                const rawQtd = getRaw(['qtd_exec', 'Qtd. Exec.', 'Qtd. Exe', 'Quantidade Executada', 'Quantidade', 'Qtd', 'Qtde', 'Quantity', 'Volume Qtd']);
+                const rawPreco = getRaw(['prc_medio', 'Prc. Médio', 'Prc. Méd', 'Preço Médio', 'Preço', 'Preco', 'Pm', 'Price', 'Avg Price']);
+                const rawStatus = getRaw(['status', 'Status', 'Status da Ordem', 'Order Status']);
+                const rawDataHora = getRaw(['data_hora', 'Data / Hora', 'Data/Hora', 'Timestamp', 'Date Time']);
+                const rawVolume = getRaw(['volume', 'Volume', 'Volume Financeiro', 'Financeiro', 'Total']);
+                const rawConta = getRaw(['conta', 'Conta', 'Account', 'Cta']);
 
                 return {
                     data: String(rawData || ''),
-                    codBolsa: String(getRaw(['Cod Bolsa', 'Código da Bolsa', 'CodBolsa']) || ''),
-                    cliente: String(getRaw(['Cliente', 'Client', 'Nome']) || 'Desconhecido'),
+                    codBolsa: String(getRaw(['cod_bolsa', 'Cod Bolsa', 'Código da Bolsa', 'CodBolsa']) || ''),
+                    cliente: String(getRaw(['cliente', 'Cliente', 'Client', 'Nome']) || 'Desconhecido'),
                     papel: String(rawPapel || ''),
                     cv: (String(rawCV).toUpperCase().startsWith('V') || normalizeStr(String(rawCV)) === 'venda' || normalizeStr(String(rawCV)) === 'sell') ? 'V' : 'C',
                     quantidade: Math.abs(parseNum(rawQtd)),

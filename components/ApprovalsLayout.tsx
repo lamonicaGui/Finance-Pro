@@ -90,9 +90,8 @@ const ApprovalsLayout: React.FC<ApprovalsLayoutProps> = ({
                         <div className="max-w-[1400px] mx-auto flex flex-col xl:flex-row gap-8 items-end">
                             <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 w-full">
                                 <div>
-                                    <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase mb-2 tracking-widest flex justify-between">
+                                    <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase mb-2 tracking-widest">
                                         Conta / Sinacor
-                                        <span className="text-[8px] text-primary/40 lowercase">debug: {localAccount || 'vazio'}</span>
                                     </label>
                                     <ClientSearch
                                         key={selectedClientId + "-account"}
@@ -109,9 +108,8 @@ const ApprovalsLayout: React.FC<ApprovalsLayoutProps> = ({
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase mb-2 tracking-widest flex justify-between">
+                                    <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase mb-2 tracking-widest">
                                         Nome do Cliente
-                                        <span className="text-[8px] text-primary/40 lowercase">debug: {localName || 'vazio'}</span>
                                     </label>
                                     <ClientSearch
                                         key={selectedClientId + "-name"}

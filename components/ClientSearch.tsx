@@ -82,7 +82,7 @@ const ClientSearch: React.FC<ClientSearchProps> = ({
                 let { data, error: sbError } = await supabase
                     .from('cadastro_clientes')
                     .select('*')
-                    .or(`Cliente.ilike.%${trimmedQuery}%,Conta.ilike.%${trimmedQuery}%`)
+                    .or(`Cliente.ilike.%${trimmedQuery}%,Conta.ilike.%${trimmedQuery}%,"Cod Bolsa".ilike.%${trimmedQuery}%`)
                     .order('Cliente', { ascending: true })
                     .limit(50);
 
