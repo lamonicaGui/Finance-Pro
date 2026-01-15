@@ -123,80 +123,84 @@ const UserManagement: React.FC = () => {
         setIsActionLoading(false);
     };
 
-    if (isLoading) {
+    if (isLoading && profiles.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center p-20 gap-4">
                 <span className="material-symbols-outlined animate-spin text-primary text-5xl">progress_activity</span>
-                <p className="text-slate-400 font-bold uppercase text-[10px] tracking-[0.2em]">Sincronizando Perfis...</p>
+                <p className="text-slate-400 dark:text-slate-500 font-bold uppercase text-[10px] tracking-[0.2em]">Sincronizando Perfis...</p>
             </div>
         );
     }
 
     return (
-        <div className="space-y-6 max-w-7xl mx-auto">
-            {/* Header / Stats */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden relative group">
+        <div className="space-y-8 animate-in fade-in duration-700">
+            {/* Header Section */}
+            <div className="bg-white dark:bg-card-dark rounded-[2.5rem] p-10 border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none relative overflow-hidden group">
                 <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:opacity-[0.05] transition-opacity pointer-events-none">
                     <span className="material-symbols-outlined text-[120px]">admin_panel_settings</span>
                 </div>
 
-                <div className="relative z-10">
-                    <div className="flex items-center gap-3 mb-2">
-                        <div className="h-8 w-1.5 bg-primary rounded-full"></div>
-                        <h2 className="text-2xl font-black text-slate-900 uppercase">Administração de Usuários</h2>
+                <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
+                    <div>
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className="h-8 w-1.5 bg-primary rounded-full"></div>
+                            <h2 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">Gestão de Usuários</h2>
+                        </div>
+                        <p className="text-slate-500 dark:text-slate-400 font-medium italic text-sm">Gerenciamento centralizado de acessos, perfis e restrições de segurança.</p>
                     </div>
-                    <p className="text-slate-500 font-medium italic text-sm">Gerenciamento centralizado de acessos, perfis e restrições de segurança.</p>
-                </div>
 
-                <div className="flex gap-3 relative z-10 w-full md:w-auto">
-                    <button
-                        onClick={fetchProfiles}
-                        className="flex-1 md:flex-none h-12 px-6 rounded-2xl bg-slate-50 border border-slate-200 text-slate-600 font-bold text-xs uppercase flex items-center justify-center gap-2 hover:bg-white hover:border-primary hover:text-primary transition-all shadow-sm active:scale-95"
-                    >
-                        <span className="material-symbols-outlined text-lg">refresh</span>
-                        Atualizar
-                    </button>
-                    <button
-                        onClick={() => setShowAddModal(true)}
-                        className="flex-1 md:flex-none h-12 px-8 rounded-2xl bg-slate-900 border border-slate-800 text-primary font-black text-xs uppercase flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-lg active:scale-95 shadow-primary/10"
-                    >
-                        <span className="material-symbols-outlined text-lg">person_add</span>
-                        Novo Usuário
-                    </button>
+                    <div className="flex items-center gap-3 w-full md:w-auto">
+                        <button
+                            onClick={fetchProfiles}
+                            className="flex-1 md:flex-none h-12 px-6 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-black text-[10px] uppercase tracking-widest hover:bg-slate-100 dark:hover:bg-slate-700 transition-all flex items-center justify-center gap-2"
+                        >
+                            <span className="material-symbols-outlined text-base">refresh</span>
+                            Atualizar
+                        </button>
+                        <button
+                            onClick={() => setShowAddModal(true)}
+                            className="flex-1 md:flex-none h-12 px-8 rounded-xl bg-slate-900 dark:bg-primary text-white dark:text-[#102218] font-black text-[10px] uppercase tracking-widest hover:brightness-110 transition-all shadow-lg flex items-center justify-center gap-2"
+                        >
+                            <span className="material-symbols-outlined text-base">person_add</span>
+                            Novo Usuário
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
-                {/* User List Table (3/4) */}
-                <div className="xl:col-span-3 bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
-                    <div className="overflow-x-auto">
+            <div className="grid grid-cols-1 xl:grid-cols-4 gap-8">
+                {/* User Table (3/4) */}
+                <div className="xl:col-span-3">
+                    <div className="overflow-hidden bg-white dark:bg-card-dark rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm relative">
+                        {isActionLoading && (
+                            <div className="absolute inset-0 bg-white/50 dark:bg-slate-900/50 backdrop-blur-[1px] z-10 flex items-center justify-center">
+                                <span className="material-symbols-outlined animate-spin text-primary text-3xl">progress_activity</span>
+                            </div>
+                        )}
+
                         <table className="w-full text-left border-collapse">
                             <thead>
-                                <tr className="bg-slate-50/50">
-                                    <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Usuário Informativo</th>
-                                    <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 text-center">Nível de Acesso</th>
-                                    <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 text-center">Status</th>
-                                    <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 text-right">Controle</th>
+                                <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
+                                    <th className="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Usuário Informativo</th>
+                                    <th className="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Nível de Acesso</th>
+                                    <th className="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Status</th>
+                                    <th className="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-right">Controle</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-50">
-                                {profiles.map(profile => (
-                                    <tr key={profile.id} className="hover:bg-slate-50/30 transition-colors group">
+                            <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+                                {profiles.map((profile) => (
+                                    <tr key={profile.id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-all border-b border-slate-50 dark:border-slate-800 last:border-0">
                                         <td className="px-8 py-6">
                                             <div className="flex items-center gap-4">
-                                                <div className="h-12 w-12 rounded-2xl bg-slate-900 flex items-center justify-center text-primary font-black text-lg shadow-lg shadow-slate-200">
-                                                    {profile.full_name?.charAt(0) || profile.email?.charAt(0) || '?'}
+                                                <div className="h-12 w-12 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 font-black relative shadow-inner">
+                                                    {profile.full_name?.charAt(0) || '?'}
+                                                    {profile.role === 'adm' && (
+                                                        <span className="absolute -top-1 -right-1 h-5 w-5 bg-amber-400 rounded-full border-2 border-white dark:border-slate-900 flex items-center justify-center text-[10px] text-white">⭐</span>
+                                                    )}
                                                 </div>
                                                 <div>
-                                                    <p className="text-[13px] font-black text-slate-900 uppercase leading-none mb-1.5 flex items-center gap-2">
-                                                        {profile.full_name || 'Sem Nome'}
-                                                        {profile.role === 'adm' && (
-                                                            <span className="material-symbols-outlined text-amber-500 text-sm fill-1">verified</span>
-                                                        )}
-                                                    </p>
-                                                    <p className="text-[11px] font-semibold text-slate-400 italic">
-                                                        {profile.email}
-                                                    </p>
+                                                    <div className="text-[11px] font-black text-slate-800 dark:text-white uppercase tracking-tight">{profile.full_name || 'Sem Nome'}</div>
+                                                    <div className="text-[10px] font-medium text-slate-400 dark:text-slate-500 italic mt-0.5">{profile.email}</div>
                                                 </div>
                                             </div>
                                         </td>
@@ -204,7 +208,7 @@ const UserManagement: React.FC = () => {
                                             <select
                                                 value={profile.role}
                                                 onChange={(e) => updateRole(profile.id, e.target.value as Profile['role'])}
-                                                className="inline-block bg-white border border-slate-200 rounded-xl px-4 py-2 text-[11px] font-black text-slate-700 focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all cursor-pointer uppercase appearance-none text-center shadow-sm"
+                                                className="inline-block bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-[11px] font-black text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all cursor-pointer uppercase appearance-none text-center shadow-sm"
                                             >
                                                 <option value="adm">ADMINISTRADOR</option>
                                                 <option value="user_bkfc">BACKOFFICE (RV+RF)</option>
@@ -215,7 +219,7 @@ const UserManagement: React.FC = () => {
                                         <td className="px-8 py-6 text-center">
                                             <button
                                                 onClick={() => toggleStatus(profile.id, profile.is_active)}
-                                                className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-tight transition-all border ${profile.is_active ? 'bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-emerald-100' : 'bg-red-50 text-red-600 border-red-100 hover:bg-red-100'}`}
+                                                className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-tight transition-all border ${profile.is_active ? 'bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20' : 'bg-red-50 text-red-600 border-red-100 hover:bg-red-100 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20'}`}
                                             >
                                                 <span className={`h-2 w-2 rounded-full ${profile.is_active ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-red-500'}`}></span>
                                                 {profile.is_active ? 'Ativo' : 'Pausado'}
@@ -226,7 +230,7 @@ const UserManagement: React.FC = () => {
                                                 <button
                                                     onClick={() => deleteUser(profile.id, profile.email || '')}
                                                     disabled={isActionLoading}
-                                                    className="h-10 w-10 flex items-center justify-center rounded-xl text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all group-hover:bg-slate-50"
+                                                    className="h-10 w-10 flex items-center justify-center rounded-xl text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all group-hover:bg-slate-50 dark:group-hover:bg-slate-800"
                                                     title="Excluir Definitivamente"
                                                 >
                                                     <span className="material-symbols-outlined text-lg">delete_forever</span>
@@ -235,6 +239,21 @@ const UserManagement: React.FC = () => {
                                         </td>
                                     </tr>
                                 ))}
+                                {profiles.length === 0 && !isLoading && (
+                                    <tr>
+                                        <td colSpan={4} className="px-8 py-20 text-center">
+                                            <div className="flex flex-col items-center gap-4">
+                                                <div className="h-16 w-16 rounded-full bg-slate-50 dark:bg-slate-900 flex items-center justify-center text-slate-300 dark:text-slate-700">
+                                                    <span className="material-symbols-outlined text-4xl">group_off</span>
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-black text-slate-400 dark:text-slate-500 uppercase tracking-tighter italic">Nenhum Usuário Encontrado</p>
+                                                    <p className="text-[10px] font-bold text-slate-300 dark:text-slate-600 uppercase tracking-widest mt-1">Verifique as permissões de banco de dados ou adicione o primeiro usuário.</p>
+                                                </div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                )}
                             </tbody>
                         </table>
                     </div>
@@ -276,15 +295,15 @@ const UserManagement: React.FC = () => {
             {/* Add User Modal */}
             {showAddModal && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md transition-all animate-in fade-in">
-                    <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-100">
-                        <div className="p-8 bg-slate-50 border-b border-slate-100 flex justify-between items-center bg-gradient-to-br from-slate-50 to-white">
+                    <div className="bg-white dark:bg-slate-950 w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-100 dark:border-slate-800">
+                        <div className="p-8 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-gradient-to-br from-slate-50 to-white dark:from-slate-900/50 dark:to-slate-950">
                             <div>
-                                <h3 className="text-xl font-black text-slate-900 uppercase">Novo Usuário</h3>
-                                <p className="text-slate-500 font-medium italic text-[11px]">Defina as credenciais de acesso inicial.</p>
+                                <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase">Novo Usuário</h3>
+                                <p className="text-slate-500 dark:text-slate-400 font-medium italic text-[11px]">Defina as credenciais de acesso inicial.</p>
                             </div>
                             <button
                                 onClick={() => { setShowAddModal(false); resetForm(); }}
-                                className="h-10 w-10 flex items-center justify-center rounded-2xl bg-white border border-slate-200 text-slate-400 hover:text-red-500 transition-all shadow-sm"
+                                className="h-10 w-10 flex items-center justify-center rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-red-500 transition-all shadow-sm"
                             >
                                 <span className="material-symbols-outlined">close</span>
                             </button>
@@ -293,44 +312,44 @@ const UserManagement: React.FC = () => {
                         <form onSubmit={handleAddUser} className="p-8 space-y-6">
                             <div className="space-y-4">
                                 <div>
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Nome Completo</label>
+                                    <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 ml-1">Nome Completo</label>
                                     <input
                                         required
                                         type="text"
                                         value={newUserName}
                                         onChange={(e) => setNewUserName(e.target.value)}
                                         placeholder="Ex: João da Silva"
-                                        className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-5 text-sm font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all placeholder:text-slate-300"
+                                        className="w-full h-12 bg-slate-50 dark:bg-slate-900 dark:text-white border border-slate-100 dark:border-slate-800 rounded-2xl px-5 text-sm font-bold text-slate-900 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all placeholder:text-slate-300 dark:placeholder:text-slate-700"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">E-mail Corporativo</label>
+                                    <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 ml-1">E-mail Corporativo</label>
                                     <input
                                         required
                                         type="email"
                                         value={newUserEmail}
                                         onChange={(e) => setNewUserEmail(e.target.value)}
                                         placeholder="usuario@katinvest.com.br"
-                                        className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-5 text-sm font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all placeholder:text-slate-300"
+                                        className="w-full h-12 bg-slate-50 dark:bg-slate-900 dark:text-white border border-slate-100 dark:border-slate-800 rounded-2xl px-5 text-sm font-bold text-slate-900 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all placeholder:text-slate-300 dark:placeholder:text-slate-700"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Senha de Acesso</label>
+                                    <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 ml-1">Senha de Acesso</label>
                                     <input
                                         required
                                         type="password"
                                         value={newUserPassword}
                                         onChange={(e) => setNewUserPassword(e.target.value)}
                                         placeholder="No mínimo 6 caracteres"
-                                        className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-5 text-sm font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all placeholder:text-slate-300"
+                                        className="w-full h-12 bg-slate-50 dark:bg-slate-900 dark:text-white border border-slate-100 dark:border-slate-800 rounded-2xl px-5 text-sm font-bold text-slate-900 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all placeholder:text-slate-300 dark:placeholder:text-slate-700"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Perfil de Acesso</label>
+                                    <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 ml-1">Perfil de Acesso</label>
                                     <select
                                         value={newUserRole}
                                         onChange={(e) => setNewUserRole(e.target.value as Profile['role'])}
-                                        className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-5 text-sm font-black text-slate-900 focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all uppercase appearance-none"
+                                        className="w-full h-12 bg-slate-50 dark:bg-slate-900 dark:text-white border border-slate-100 dark:border-slate-800 rounded-2xl px-5 text-sm font-black text-slate-900 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all uppercase appearance-none"
                                     >
                                         <option value="adm">ADMINISTRADOR (FULL)</option>
                                         <option value="user_bkfc">BACKOFFICE (RV+RF)</option>
@@ -343,7 +362,7 @@ const UserManagement: React.FC = () => {
                             <button
                                 type="submit"
                                 disabled={isActionLoading}
-                                className="w-full h-14 bg-slate-900 text-primary rounded-[1.25rem] font-black text-xs uppercase tracking-[0.1em] shadow-xl shadow-primary/10 hover:bg-slate-800 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
+                                className="w-full h-14 bg-slate-900 dark:bg-primary text-primary dark:text-[#102218] rounded-[1.25rem] font-black text-xs uppercase tracking-[0.1em] shadow-xl shadow-primary/10 hover:brightness-110 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
                             >
                                 {isActionLoading ? (
                                     <span className="material-symbols-outlined animate-spin">progress_activity</span>
