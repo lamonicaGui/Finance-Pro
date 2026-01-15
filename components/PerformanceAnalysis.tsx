@@ -38,6 +38,7 @@ const PerformanceAnalysis: React.FC = () => {
                 Papa.parse(text, {
                     header: true,
                     skipEmptyLines: true,
+                    dynamicTyping: false,
                     complete: (results) => {
                         processRawData(results.data);
                     }
