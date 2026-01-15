@@ -68,11 +68,11 @@ const App: React.FC = () => {
       setIsAuthLoading(false);
     });
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    // Listen for auth changes (this is the single source of truth)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
       if (session) {
-        fetchProfile(session.user.id);
+        await fetchProfile(session.user.id);
       } else {
         setUserProfile(null);
       }
@@ -379,7 +379,7 @@ const App: React.FC = () => {
   }
 
   if (!session) {
-    return <Login onLoginSuccess={() => setIsAuthLoading(true)} />;
+    return <Login onLoginSuccess={() => { }} />;
   }
 
   // Removed early return for 'ordens' to unify layout
