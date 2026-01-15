@@ -11,6 +11,7 @@ import { supabase } from './services/supabase.ts';
 import Login from './components/Login.tsx';
 import UserManagement from './components/UserManagement.tsx';
 import ApprovalsLayout from './components/ApprovalsLayout.tsx';
+import PerformanceAnalysis from './components/PerformanceAnalysis.tsx';
 import { Session } from '@supabase/supabase-js';
 import { copyAndOpenOutlook, generateOrderEmailHtml, generateOrderEmailSubject, generateOrderEmailPlainText } from './utils/emailGenerator.ts';
 
@@ -21,7 +22,7 @@ const App: React.FC = () => {
   const [userProfile, setUserProfile] = useState<any>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
 
-  const [activeTab, setActiveTab] = useState<'ordens' | 'laminas' | 'swing-trade' | 'gemini' | 'renda-fixa' | 'relatorios' | 'gestao-usuarios'>('ordens');
+  const [activeTab, setActiveTab] = useState<'ordens' | 'laminas' | 'swing-trade' | 'gemini' | 'renda-fixa' | 'relatorios' | 'gestao-usuarios' | 'analise-performance'>('ordens');
   const [expandedCategory, setExpandedCategory] = useState<'rv' | 'rf' | 'rel' | 'config' | null>('rv');
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
 
@@ -150,7 +151,7 @@ const App: React.FC = () => {
     if (tab === 'renda-fixa') {
       return role === 'usuario_rf' || role === 'user_bkfc';
     }
-    if (tab === 'relatorios' || tab === 'gemini') {
+    if (tab === 'relatorios' || tab === 'gemini' || tab === 'analise-performance') {
       return role === 'user_bkfc' || role === 'adm';
     }
     if (tab === 'gestao-usuarios') {
@@ -502,6 +503,12 @@ const App: React.FC = () => {
                     >
                       Performance Anual
                     </button>
+                    <button
+                      onClick={() => setActiveTab('analise-performance')}
+                      className={`flex items-center gap-4 px-5 py-2.5 rounded-xl text-[10px] font-bold uppercase transition-all ${activeTab === 'analise-performance' ? 'text-primary' : 'text-slate-500 hover:text-slate-300'}`}
+                    >
+                      Análise de Performance
+                    </button>
                   </div>
                 )}
               </div>
@@ -599,7 +606,8 @@ const App: React.FC = () => {
                     activeTab === 'renda-fixa' ? 'Investimentos Renda Fixa' :
                       activeTab === 'relatorios' ? 'Central de Relatórios' :
                         activeTab === 'gestao-usuarios' ? 'Administração de Usuários' :
-                          'Gemini AI Assistant'}
+                          activeTab === 'analise-performance' ? 'Análise de Performance' :
+                            'Gemini AI Assistant'}
             </h1>
             <p className="text-sm font-medium text-slate-500 italic">
               {activeTab === 'ordens' ? 'Disparo de ordens estruturadas via API/Outlook' :
@@ -608,7 +616,8 @@ const App: React.FC = () => {
                     activeTab === 'renda-fixa' ? 'CDB, LCI, LCA e Títulos Públicos' :
                       activeTab === 'relatorios' ? 'Análise de performance e extratos consolidados' :
                         activeTab === 'gestao-usuarios' ? 'Gerenciamento de acessos, perfis e usuários' :
-                          'Inteligência Artificial Integrada'}
+                          activeTab === 'analise-performance' ? 'Análise detalhada de operações e rentabilidade' :
+                            'Inteligência Artificial Integrada'}
             </p>
           </div>
 
@@ -694,6 +703,7 @@ const App: React.FC = () => {
           {activeTab === 'laminas' && <HawkGenerator />}
           {activeTab === 'swing-trade' && <SwingTradeGenerator userEmail={userProfile?.email} />}
           {activeTab === 'gestao-usuarios' && <UserManagement />}
+          {activeTab === 'analise-performance' && <PerformanceAnalysis />}
 
           {activeTab === 'gemini' && (
             <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100">

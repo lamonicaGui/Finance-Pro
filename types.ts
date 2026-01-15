@@ -77,3 +77,48 @@ export interface SwingTradeAsset {
   selected?: boolean;
   currentPrice?: number;
 }
+
+// PERFORMANCE ANALYSIS TYPES
+export interface TradeRecord {
+  data: string;
+  codBolsa: string;
+  cliente: string;
+  papel: string;
+  cv: 'C' | 'V' | 'Compra' | 'Venda';
+  quantidade: number;
+  precoMedio: number;
+  status: string;
+  dataHora: string;
+  volume: number;
+  liquidacao: string;
+  assessor: string;
+  especialista: string;
+  conta: string;
+}
+
+export interface Operation {
+  id: string;
+  ticker: string;
+  cliente: string;
+  conta: string;
+  entryDate: string;
+  exitDate: string;
+  entryPrice: number;
+  exitPrice: number;
+  quantity: number;
+  volume: number;
+  resultBrRL: number;
+  resultPercent: number;
+  durationDays: number;
+  side: 'Long' | 'Short';
+}
+
+export interface PerformanceSummary {
+  totalResultBrRL: number;
+  averageReturnPercent: number;
+  weightedAverageReturnPercent: number;
+  totalOperations: number;
+  winRate: number;
+  totalVolume: number;
+  drawdown?: number;
+}
