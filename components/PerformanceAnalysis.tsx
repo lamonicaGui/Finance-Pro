@@ -539,7 +539,7 @@ const PerformanceAnalysis: React.FC = () => {
                     </div>
 
                     {/* Filters Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-50/50 dark:bg-slate-900/30 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 bg-slate-50/50 dark:bg-slate-900/30 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 relative">
                         <div className="space-y-2">
                             <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Cliente</label>
                             <ClientSearch
@@ -576,21 +576,26 @@ const PerformanceAnalysis: React.FC = () => {
 
                         <div className="space-y-2">
                             <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Data Final</label>
-                            <div className="flex gap-2">
-                                <input
-                                    type="date"
-                                    value={endDate}
-                                    onChange={(e) => setEndDate(e.target.value)}
-                                    className="flex-1 h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-                                />
-                                <button
-                                    onClick={fetchDataFromSupabase}
-                                    disabled={isProcessing}
-                                    className="h-12 px-6 rounded-xl bg-primary text-white font-black uppercase text-xs tracking-wider shadow-lg shadow-primary/20 hover:brightness-110 active:scale-95 transition-all flex items-center justify-center disabled:opacity-50"
-                                >
-                                    {isProcessing ? <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span> : 'Filtrar'}
-                                </button>
-                            </div>
+                            <input
+                                type="date"
+                                value={endDate}
+                                onChange={(e) => setEndDate(e.target.value)}
+                                className="w-full h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                            />
+                        </div>
+
+                        <div className="flex items-end">
+                            <button
+                                onClick={fetchDataFromSupabase}
+                                disabled={isProcessing}
+                                className="w-full h-12 rounded-xl bg-primary text-white font-black uppercase text-xs tracking-wider shadow-lg shadow-primary/20 hover:brightness-110 active:scale-95 transition-all flex items-center justify-center disabled:opacity-50"
+                            >
+                                {isProcessing ? (
+                                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                                ) : (
+                                    'Filtrar'
+                                )}
+                            </button>
                         </div>
                     </div>
                 </div>

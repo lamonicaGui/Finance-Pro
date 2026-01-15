@@ -113,11 +113,11 @@ const ClientSearch: React.FC<ClientSearchProps> = ({
     };
 
     const inputClasses = showHeaderStyle
-        ? "w-full h-12 pl-5 pr-12 text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-black uppercase text-slate-800 dark:text-white focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all shadow-sm cursor-text pointer-events-auto opacity-100"
-        : "block w-full h-11 rounded-2xl border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-2 pl-4 pr-12 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-primary/10 focus:border-primary sm:text-sm font-black uppercase tracking-tight transition-all placeholder:text-slate-400 dark:placeholder:text-slate-600 cursor-text pointer-events-auto opacity-100";
+        ? "w-full h-12 pl-5 pr-12 text-[13px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-bold uppercase text-slate-800 dark:text-white focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all shadow-sm cursor-text pointer-events-auto opacity-100 placeholder:normal-case placeholder:font-medium"
+        : "block w-full h-11 rounded-xl border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-2 pl-4 pr-12 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-primary/10 focus:border-primary sm:text-sm font-bold uppercase tracking-tight transition-all placeholder:text-slate-400 dark:placeholder:text-slate-600 cursor-text pointer-events-auto opacity-100";
 
     return (
-        <div ref={wrapperRef} className={`relative ${className}`} style={{ isolate: 'isolate' }}>
+        <div ref={wrapperRef} className={`relative ${className}`}>
             <div className="relative">
                 <input
                     type="text"
@@ -133,9 +133,9 @@ const ClientSearch: React.FC<ClientSearchProps> = ({
                     }}
                     onFocus={() => setIsOpen(true)}
                 />
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
                     {loading ? (
-                        <span className="material-symbols-outlined animate-spin text-primary text-sm">progress_activity</span>
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent"></div>
                     ) : (
                         !showHeaderStyle && <span className="material-symbols-outlined text-slate-300 dark:text-slate-700 text-lg">search</span>
                     )}
