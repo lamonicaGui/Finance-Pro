@@ -90,9 +90,12 @@ const ApprovalsLayout: React.FC<ApprovalsLayoutProps> = ({
                         <div className="max-w-[1400px] mx-auto flex flex-col xl:flex-row gap-8 items-end">
                             <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 w-full">
                                 <div>
-                                    <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase mb-2 tracking-widest">Conta / Sinacor</label>
+                                    <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase mb-2 tracking-widest flex justify-between">
+                                        Conta / Sinacor
+                                        <span className="text-[8px] text-primary/40 lowercase">debug: {localAccount || 'vazio'}</span>
+                                    </label>
                                     <ClientSearch
-                                        key={selectedClient.id + "-account"}
+                                        key={selectedClientId + "-account"}
                                         initialValue={localAccount}
                                         showHeaderStyle
                                         placeholder="Conta..."
@@ -106,9 +109,12 @@ const ApprovalsLayout: React.FC<ApprovalsLayoutProps> = ({
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase mb-2 tracking-widest">Nome do Cliente</label>
+                                    <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase mb-2 tracking-widest flex justify-between">
+                                        Nome do Cliente
+                                        <span className="text-[8px] text-primary/40 lowercase">debug: {localName || 'vazio'}</span>
+                                    </label>
                                     <ClientSearch
-                                        key={selectedClient.id + "-name"}
+                                        key={selectedClientId + "-name"}
                                         initialValue={localName}
                                         showHeaderStyle
                                         placeholder="Nome..."
@@ -124,7 +130,7 @@ const ApprovalsLayout: React.FC<ApprovalsLayoutProps> = ({
                                 <div>
                                     <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase mb-2 tracking-widest">E-mail (Para)</label>
                                     <input
-                                        className="w-full h-12 px-5 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-medium text-slate-600 dark:text-slate-300 focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all"
+                                        className="w-full h-12 px-5 text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-medium text-slate-600 dark:text-slate-300 focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all shadow-sm"
                                         type="email"
                                         value={localEmail}
                                         onChange={(e) => setLocalEmail(e.target.value)}
@@ -134,7 +140,7 @@ const ApprovalsLayout: React.FC<ApprovalsLayoutProps> = ({
                                 <div>
                                     <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase mb-2 tracking-widest">CC (Cópia)</label>
                                     <input
-                                        className="w-full h-12 px-5 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-medium text-slate-600 dark:text-slate-300 focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all"
+                                        className="w-full h-12 px-5 text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-medium text-slate-600 dark:text-slate-300 focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all shadow-sm"
                                         type="text"
                                         value={localCC}
                                         onChange={(e) => setLocalCC(e.target.value)}

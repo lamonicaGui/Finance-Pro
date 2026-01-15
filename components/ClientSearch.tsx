@@ -30,14 +30,29 @@ const ClientSearch: React.FC<ClientSearchProps> = ({
     const [results, setResults] = useState<Client[]>([]);
     const [isOpen, setIsOpen] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const wrapperRef = useRef<HTMLDivElement>(null);
 
-    // Update query only when initialValue changes from OUTSIDE (different from current query)
     useEffect(() => {
         if (initialValue !== query) {
             setQuery(initialValue);
         }
     }, [initialValue]);
+
+    useEffect(() => {
+        // Connection check
+        const checkConnection = async () => {
+            try {
+                const { count, error } = await supabase.from('cadastro_clientes').select('*', { count: 'exact', head: true });
+                console.log(`[ClientSearch] Connection Check - Count: ${count}, Error:`, error);
+                if (error) setError(`DB: ${error.message}`);
+            } catch (err: any) {
+                console.error('[ClientSearch] Connection Check crash:', err);
+                setError(`Crash: ${err.message}`);
+            }
+        };
+        checkConnection();
+    }, []);
 
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
@@ -54,33 +69,40 @@ const ClientSearch: React.FC<ClientSearchProps> = ({
             const trimmedQuery = query.trim();
             if (trimmedQuery.length < 2) {
                 setResults([]);
+                setLoading(false);
                 return;
             }
-            setLoading(true);
-            try {
-                let queryBuilder = supabase.from('cadastro_clientes').select('*');
-                let filter = `Cliente.ilike.%${trimmedQuery}%,"Cod Bolsa".ilike.%${trimmedQuery}%,Conta.ilike.%${trimmedQuery}%`;
-                queryBuilder = queryBuilder.or(filter);
 
-                const { data, error } = await queryBuilder
+            setLoading(true);
+            setError(null);
+            console.log(`[ClientSearch] Searching: "${trimmedQuery}"`);
+
+            try {
+                // Try simple name search first to rule out syntax issues with complex OR
+                let { data, error: sbError } = await supabase
+                    .from('cadastro_clientes')
+                    .select('*')
+                    .or(`Cliente.ilike.%${trimmedQuery}%,Conta.ilike.%${trimmedQuery}%`)
                     .order('Cliente', { ascending: true })
                     .limit(50);
 
-                console.log(`[ClientSearch] Query: "${trimmedQuery}", Results: ${data?.length || 0}`);
-
-                if (error) {
+                if (sbError) {
+                    console.error('[ClientSearch] Search error:', sbError);
+                    setError(sbError.message);
                     setResults([]);
                 } else {
+                    console.log(`[ClientSearch] Success: ${data?.length || 0} items`);
                     setResults((data as Client[]) || []);
                 }
-            } catch (err) {
-                console.error('[ClientSearch] Search error:', err);
+            } catch (err: any) {
+                console.error('[ClientSearch] Fatal error:', err);
+                setError(err.message);
             } finally {
                 setLoading(false);
             }
         };
 
-        const timer = setTimeout(searchClients, 300);
+        const timer = setTimeout(searchClients, 400);
         return () => clearTimeout(timer);
     }, [query]);
 
@@ -100,7 +122,7 @@ const ClientSearch: React.FC<ClientSearchProps> = ({
                 <input
                     type="text"
                     autoComplete="off"
-                    className={inputClasses}
+                    className={`${inputClasses} ${error ? 'border-red-500' : ''}`}
                     placeholder={placeholder}
                     value={query}
                     onChange={(e) => {
@@ -111,36 +133,53 @@ const ClientSearch: React.FC<ClientSearchProps> = ({
                     }}
                     onFocus={() => setIsOpen(true)}
                 />
-                {!showHeaderStyle && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
-                        {loading ? (
-                            <span className="material-symbols-outlined animate-spin text-primary text-sm">progress_activity</span>
-                        ) : (
-                            <span className="material-symbols-outlined text-slate-300 dark:text-slate-700 text-lg">search</span>
-                        )}
-                    </div>
-                )}
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+                    {loading ? (
+                        <span className="material-symbols-outlined animate-spin text-primary text-sm">progress_activity</span>
+                    ) : (
+                        !showHeaderStyle && <span className="material-symbols-outlined text-slate-300 dark:text-slate-700 text-lg">search</span>
+                    )}
+                </div>
             </div>
 
-            {isOpen && results.length > 0 && (
-                <div className="absolute left-0 right-0 z-[999] mt-2">
-                    <ul className="max-h-72 w-full overflow-auto rounded-[1.5rem] bg-white dark:bg-slate-900 py-3 text-base shadow-2xl ring-1 ring-black/5 focus:outline-none sm:text-sm border border-slate-100 dark:border-slate-800 custom-scrollbar animate-in fade-in slide-in-from-top-2 duration-200">
-                        {results.map((client) => (
-                            <li
-                                key={client["Cod Bolsa"] + client.Conta}
-                                className="relative cursor-pointer select-none py-3 px-5 hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors border-b border-slate-50 last:border-0 dark:border-slate-800/50"
-                                onClick={() => handleSelect(client)}
-                            >
-                                <div className="flex flex-col">
-                                    <span className="truncate font-black text-slate-900 dark:text-white uppercase tracking-tight text-[11px]">{client.Cliente}</span>
-                                    <div className="flex items-center gap-2 mt-1">
-                                        <span className="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[9px] font-black text-slate-500 uppercase tracking-tighter">CONTA: {client.Conta}</span>
-                                        <span className="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[9px] font-black text-slate-500 uppercase tracking-tighter">BOLSA: {client["Cod Bolsa"]}</span>
-                                    </div>
-                                </div>
-                            </li>
-                        ))}
-                    </ul>
+            {isOpen && query.trim().length >= 2 && (
+                <div className="absolute left-0 right-0 z-[9999] mt-2">
+                    <div className="max-h-72 w-full overflow-auto rounded-[1.5rem] bg-white dark:bg-slate-900 py-3 text-base shadow-2xl ring-1 ring-black/10 focus:outline-none sm:text-sm border border-slate-100 dark:border-slate-800 custom-scrollbar animate-in fade-in slide-in-from-top-2 duration-200">
+                        {loading ? (
+                            <div className="p-8 text-center">
+                                <span className="material-symbols-outlined animate-spin text-primary text-2xl mb-2">progress_activity</span>
+                                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Buscando na base mestre...</p>
+                            </div>
+                        ) : error ? (
+                            <div className="p-6 text-center text-red-500">
+                                <span className="material-symbols-outlined text-xl mb-1">error_outline</span>
+                                <p className="text-[10px] font-black uppercase tracking-widest">{error}</p>
+                            </div>
+                        ) : results.length > 0 ? (
+                            <ul className="divide-y divide-slate-50 dark:divide-slate-800/50">
+                                {results.map((client) => (
+                                    <li
+                                        key={client["Cod Bolsa"] + "-" + client.Conta}
+                                        className="relative cursor-pointer select-none py-3 px-5 hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors"
+                                        onClick={() => handleSelect(client)}
+                                    >
+                                        <div className="flex flex-col">
+                                            <span className="truncate font-black text-slate-900 dark:text-white uppercase tracking-tight text-[11px]">{client.Cliente}</span>
+                                            <div className="flex items-center gap-2 mt-1">
+                                                <span className="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[9px] font-black text-slate-400 uppercase tracking-tighter">CONTA: {client.Conta}</span>
+                                                <span className="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[9px] font-black text-slate-400 uppercase tracking-tighter">BOLSA: {client["Cod Bolsa"]}</span>
+                                            </div>
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : (
+                            <div className="p-8 text-center">
+                                <span className="material-symbols-outlined text-slate-200 dark:text-slate-800 text-3xl mb-2">person_search</span>
+                                <p className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-600 tracking-widest">Nenhum cliente encontrado</p>
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
         </div>
