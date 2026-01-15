@@ -371,6 +371,9 @@ const PerformanceAnalysis: React.FC = () => {
 
             console.log("Dados normalizados:", normalizedData.length, "registros válidos");
 
+            // Calculate Total Volume Operated (sum of all executed orders)
+            const totalVolumeOperated = normalizedData.reduce((sum, r) => sum + (r.volume || (r.quantidade * r.precoMedio)), 0);
+
             // 4. Group by Account + Ticker
             const groups: { [key: string]: TradeRecord[] } = {};
             normalizedData.forEach(record => {
@@ -493,7 +496,9 @@ const PerformanceAnalysis: React.FC = () => {
                     weightedAverageReturnPercent: weightedAvg,
                     totalOperations: sortedOps.length,
                     winRate,
-                    totalVolume,
+                    totalVolume, // Represents Volume Total Encerrado
+                    totalVolumeOperated,
+                    averageVolumeClosed: sortedOps.length > 0 ? totalVolume / sortedOps.length : 0,
                     drawdown: maxDD * 100
                 });
             } else {
@@ -743,18 +748,49 @@ const PerformanceAnalysis: React.FC = () => {
                     {/* KPI Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         {[
-                            { label: 'Resultado Total', value: formatCurrency(summary.totalResultBrRL), subLabel: `Volume: ${formatCurrency(summary.totalVolume)}`, icon: 'payments', pos: summary.totalResultBrRL >= 0 },
-                            { label: 'Rentabilidade (Ponderada)', value: formatPercent(summary.weightedAverageReturnPercent), subLabel: `Média Simples: ${formatPercent(summary.averageReturnPercent)}`, icon: 'query_stats', pos: summary.weightedAverageReturnPercent >= 0 },
-                            { label: 'Taxa de Acerto', value: formatPercent(summary.winRate), subLabel: `${operations.filter(op => op.resultBrRL > 0).length} de ${summary.totalOperations} trades`, icon: 'done_all' }
+                            {
+                                label: 'Resultado Total',
+                                value: formatCurrency(summary.totalResultBrRL),
+                                icon: 'payments',
+                                pos: summary.totalResultBrRL >= 0,
+                                volumes: [
+                                    { label: 'Vol. Encerrado', value: summary.totalVolume },
+                                    { label: 'Vol. Operado', value: summary.totalVolumeOperated },
+                                    { label: 'Vol. Médio', value: summary.averageVolumeClosed }
+                                ]
+                            },
+                            {
+                                label: 'Rentabilidade (Ponderada)',
+                                value: formatPercent(summary.weightedAverageReturnPercent),
+                                subLabel: `Média Simples: ${formatPercent(summary.averageReturnPercent)}`,
+                                icon: 'query_stats',
+                                pos: summary.weightedAverageReturnPercent >= 0
+                            },
+                            {
+                                label: 'Taxa de Acerto',
+                                value: formatPercent(summary.winRate),
+                                subLabel: `${operations.filter(op => op.resultBrRL > 0).length} de ${summary.totalOperations} trades`,
+                                icon: 'done_all'
+                            }
                         ].map((kpi, i) => (
                             <div key={i} className="bg-white dark:bg-card-dark rounded-[2rem] p-6 border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none">
                                 <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">{kpi.label}</p>
                                 <h3 className={`text-2xl font-black ${kpi.pos ? 'text-emerald-600' : (kpi as any).neg ? 'text-red-500' : 'text-slate-800 dark:text-white'}`}>
                                     {kpi.value}
                                 </h3>
-                                <div className="mt-2 flex items-center gap-1 text-[10px] font-bold text-slate-500 dark:text-slate-400">
-                                    <span className="material-symbols-outlined text-xs">{kpi.icon}</span>
-                                    {kpi.subLabel}
+
+                                <div className="mt-2 space-y-1">
+                                    {kpi.volumes ? kpi.volumes.map((v, vi) => (
+                                        <div key={vi} className="flex items-center justify-between text-[9px] font-bold text-slate-500 dark:text-slate-400">
+                                            <span className="uppercase tracking-tighter text-slate-400">{v.label}</span>
+                                            <span className="text-slate-600 dark:text-slate-300">{formatCurrency(v.value)}</span>
+                                        </div>
+                                    )) : (
+                                        <div className="flex items-center gap-1 text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                                            <span className="material-symbols-outlined text-xs">{kpi.icon}</span>
+                                            {kpi.subLabel}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         ))}

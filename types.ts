@@ -119,6 +119,8 @@ export interface PerformanceSummary {
   weightedAverageReturnPercent: number;
   totalOperations: number;
   winRate: number;
-  totalVolume: number;
+  totalVolume: number; // Represents Volume Total Encerrado
+  totalVolumeOperated: number;
+  averageVolumeClosed: number;
   drawdown?: number;
 }
