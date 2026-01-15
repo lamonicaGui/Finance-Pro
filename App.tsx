@@ -493,7 +493,7 @@ const App: React.FC = () => {
               </button>
               <div className="mt-auto pt-6 px-1 flex flex-col gap-2">
                 <div className="text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-[0.2em] text-center mb-2">
-                  FinancePro v5.0.0
+                  FinancePro v5.1.0
                 </div>
               </div>
             </nav>
@@ -691,7 +691,7 @@ const App: React.FC = () => {
             </div>
           )}
 
-          {activeTab === 'fixed-income-compromissadas' && <FixedIncomeCompromissadas />}
+          {activeTab === 'fixed-income-compromissadas' && <FixedIncomeCompromissadas advisorEmail={userProfile?.email} />}
 
           {activeTab === 'laminas' && <HawkGenerator />}
           {activeTab === 'swing-trade' && <SwingTradeGenerator userEmail={userProfile?.email} />}
