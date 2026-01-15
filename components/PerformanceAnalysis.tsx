@@ -123,7 +123,8 @@ const PerformanceAnalysis: React.FC = () => {
             let query = supabase.from('executed_orders').select('*');
 
             if (selectedClient) {
-                query = query.eq('cliente', selectedClient);
+                // Use ilike for robustness against spaces or case
+                query = query.ilike('cliente', `%${selectedClient.trim()}%`);
             }
             if (selectedTicker) {
                 query = query.eq('papel', selectedTicker);
@@ -141,12 +142,15 @@ const PerformanceAnalysis: React.FC = () => {
 
             if (error) {
                 console.error("Error fetching data:", error);
-                alert("Erro ao buscar dados do Supabase.");
+                alert(`Erro ao buscar dados: ${error.message}`);
                 return;
             }
 
             if (!data || data.length === 0) {
-                alert("Nenhuma ordem encontrada para os filtros selecionados.");
+                alert(`Nenhuma ordem encontrada. 
+                \nFiltros: ${selectedClient || 'Todos'} 
+                \nPeriodo: ${startDate || '?'} a ${endDate || '?'}
+                \n(Dica: Verifique se o nome está correto e o período abrange o ano de 2025)`);
                 setOperations([]);
                 setSummary(null);
                 return;
