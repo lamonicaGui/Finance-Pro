@@ -12,15 +12,19 @@ interface Client {
 interface ClientSearchProps {
     placeholder?: string;
     onSelect: (client: Client) => void;
+    onQueryChange?: (query: string) => void;
     className?: string;
     initialValue?: string;
+    showHeaderStyle?: boolean;
 }
 
 const ClientSearch: React.FC<ClientSearchProps> = ({
     placeholder = "Buscar por Nome, Cod Bolsa ou Conta...",
     onSelect,
+    onQueryChange,
     className = "",
-    initialValue = ""
+    initialValue = "",
+    showHeaderStyle = false
 }) => {
     const [query, setQuery] = useState(initialValue);
     const [results, setResults] = useState<Client[]>([]);
@@ -44,18 +48,15 @@ const ClientSearch: React.FC<ClientSearchProps> = ({
 
     useEffect(() => {
         const searchClients = async () => {
+            if (!query.trim()) {
+                setResults([]);
+                return;
+            }
             setLoading(true);
-            console.log(`[ClientSearch] Buscando por: "${query || '(vazio - lista padrão)'}"`);
-
             try {
                 let queryBuilder = supabase.from('cadastro_clientes').select('*');
-
-                if (query.trim()) {
-                    // O usuário solicitou busca estrita por Cliente, Conta e Cod Bolsa.
-                    // Removemos 'Assessor' para evitar que todos os clientes de um assessor apareçam.
-                    let filter = `Cliente.ilike.%${query}%,"Cod Bolsa".ilike.%${query}%,Conta.ilike.%${query}%`;
-                    queryBuilder = queryBuilder.or(filter);
-                }
+                let filter = `Cliente.ilike.%${query}%,"Cod Bolsa".ilike.%${query}%,Conta.ilike.%${query}%`;
+                queryBuilder = queryBuilder.or(filter);
 
                 const { data, error } = await queryBuilder
                     .order('Cliente', { ascending: true })
@@ -63,12 +64,8 @@ const ClientSearch: React.FC<ClientSearchProps> = ({
 
                 if (error) {
                     console.error('[ClientSearch] Erro ao buscar:', error);
-                    if (error.message?.includes('infinite recursion')) {
-                        alert('ERRO DE SISTEMA: Foi detectada uma "recursão infinita" nas políticas do banco de dados (RLS). Por favor, verifique as políticas da tabela "profiles" no Supabase.');
-                    }
                     setResults([]);
                 } else {
-                    console.log(`[ClientSearch] Retornou ${data?.length || 0} clientes. Primeiro: ${data?.[0]?.Cliente || 'Nenhum'}`);
                     setResults((data as Client[]) || []);
                 }
             } catch (err) {
@@ -88,27 +85,34 @@ const ClientSearch: React.FC<ClientSearchProps> = ({
         onSelect(client);
     };
 
+    const inputClasses = showHeaderStyle
+        ? "w-full h-12 px-5 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-black uppercase text-slate-800 dark:text-white focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all shadow-sm"
+        : "block w-full h-11 rounded-2xl border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-2 pl-4 pr-10 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-primary/10 focus:border-primary sm:text-sm font-black uppercase tracking-tight transition-all placeholder:text-slate-400 dark:placeholder:text-slate-600";
+
     return (
         <div ref={wrapperRef} className={`relative ${className}`}>
             <div className="relative">
                 <input
                     type="text"
-                    className="block w-full h-11 rounded-2xl border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-2 pl-4 pr-10 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-primary/10 focus:border-primary sm:text-sm font-black uppercase tracking-tight transition-all placeholder:text-slate-400 dark:placeholder:text-slate-600"
+                    className={inputClasses}
                     placeholder={placeholder}
                     value={query}
                     onChange={(e) => {
                         setQuery(e.target.value);
                         setIsOpen(true);
+                        if (onQueryChange) onQueryChange(e.target.value);
                     }}
                     onFocus={() => setIsOpen(true)}
                 />
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center">
-                    {loading ? (
-                        <span className="material-symbols-outlined animate-spin text-primary text-sm">progress_activity</span>
-                    ) : (
-                        <span className="material-symbols-outlined text-slate-300 dark:text-slate-700 text-lg">search</span>
-                    )}
-                </div>
+                {!showHeaderStyle && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center">
+                        {loading ? (
+                            <span className="material-symbols-outlined animate-spin text-primary text-sm">progress_activity</span>
+                        ) : (
+                            <span className="material-symbols-outlined text-slate-300 dark:text-slate-700 text-lg">search</span>
+                        )}
+                    </div>
+                )}
             </div>
 
             {isOpen && results.length > 0 && (
@@ -129,13 +133,6 @@ const ClientSearch: React.FC<ClientSearchProps> = ({
                         </li>
                     ))}
                 </ul>
-            )}
-
-            {isOpen && query.length >= 2 && !loading && results.length === 0 && (
-                <div className="absolute z-[100] mt-3 w-full rounded-[1.5rem] bg-white dark:bg-slate-900 p-6 text-center shadow-2xl ring-1 ring-black ring-opacity-5 border border-slate-100 dark:border-slate-800 animate-in fade-in slide-in-from-top-2 duration-200">
-                    <span className="material-symbols-outlined text-slate-200 dark:text-slate-800 text-3xl mb-2">person_search</span>
-                    <p className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-600 tracking-widest">Nenhum cliente encontrado</p>
-                </div>
             )}
         </div>
     );

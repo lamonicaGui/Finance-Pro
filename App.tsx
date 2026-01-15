@@ -517,23 +517,25 @@ const App: React.FC = () => {
               <div className="space-y-3">
                 <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest px-1">Ações Rápidas</h3>
 
-                <div className="px-1">
+                <div className="px-1 relative z-50">
                   <ClientSearch
                     placeholder="Adicionar por Busca..."
                     onSelect={addClientFromMaster}
-                    className="mb-3"
+                    className="w-full mb-3"
                   />
                 </div>
 
-                <button
-                  onClick={addClient}
-                  className="w-full flex items-center gap-3 p-3 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:bg-primary/[0.02] transition-all text-left group"
-                >
-                  <div className="bg-slate-100 dark:bg-slate-800 p-2 rounded-lg group-hover:bg-primary/10 transition-all">
-                    <span className="material-icons-outlined text-sm text-slate-500 dark:text-slate-400 group-hover:text-primary">person_add</span>
-                  </div>
-                  <span className="text-[9px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest">Novo Cliente (Vazio)</span>
-                </button>
+                <div className="px-1">
+                  <button
+                    onClick={addClient}
+                    className="w-full h-11 flex items-center gap-3 px-4 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:bg-primary/[0.02] transition-all text-left group"
+                  >
+                    <div className="bg-slate-100 dark:bg-slate-800 p-2 rounded-lg group-hover:bg-primary/10 transition-all">
+                      <span className="material-icons-outlined text-sm text-slate-500 dark:text-slate-400 group-hover:text-primary">person_add</span>
+                    </div>
+                    <span className="text-[9px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest">Novo Cliente (Vazio)</span>
+                  </button>
+                </div>
               </div>
             </div>
           )}

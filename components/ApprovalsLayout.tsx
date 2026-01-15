@@ -40,6 +40,48 @@ const ApprovalsLayout: React.FC<ApprovalsLayoutProps> = ({
 }) => {
     const selectedClient = clients.find(c => c.id === selectedClientId);
 
+    // Local state for header fields to ensure fluid typing
+    const [localName, setLocalName] = React.useState('');
+    const [localAccount, setLocalAccount] = React.useState('');
+    const [localEmail, setLocalEmail] = React.useState('');
+    const [localCC, setLocalCC] = React.useState('');
+    const lastClientId = React.useRef<string | null>(null);
+
+    // Sync local state when selected client changes
+    React.useEffect(() => {
+        if (selectedClient && selectedClient.id !== lastClientId.current) {
+            setLocalName(selectedClient.name || '');
+            setLocalAccount(selectedClient.account || '');
+            setLocalEmail(selectedClient.email || '');
+            setLocalCC(selectedClient.cc || '');
+            lastClientId.current = selectedClient.id;
+        }
+    }, [selectedClient?.id]);
+
+    // Debounced update to global state
+    React.useEffect(() => {
+        if (!selectedClient) return;
+
+        const timer = setTimeout(() => {
+            const hasChanges =
+                localName !== (selectedClient.name || '') ||
+                localAccount !== (selectedClient.account || '') ||
+                localEmail !== (selectedClient.email || '') ||
+                localCC !== (selectedClient.cc || '');
+
+            if (hasChanges) {
+                onUpdateClient(selectedClient.id, {
+                    name: localName,
+                    account: localAccount,
+                    email: localEmail,
+                    cc: localCC
+                });
+            }
+        }, 500);
+
+        return () => clearTimeout(timer);
+    }, [localName, localAccount, localEmail, localCC]);
+
     return (
         <div className="flex flex-col gap-8 -mt-10">
             {selectedClient ? (
@@ -49,20 +91,32 @@ const ApprovalsLayout: React.FC<ApprovalsLayoutProps> = ({
                             <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 w-full">
                                 <div>
                                     <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase mb-2 tracking-widest">Conta / Sinacor</label>
-                                    <input
-                                        disabled
-                                        className="w-full h-12 px-5 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl font-mono font-black text-slate-400"
-                                        type="text"
-                                        value={selectedClient.account}
+                                    <ClientSearch
+                                        initialValue={localAccount}
+                                        showHeaderStyle
+                                        placeholder="Conta..."
+                                        onQueryChange={setLocalAccount}
+                                        onSelect={(master) => {
+                                            setLocalAccount(master.Conta.toString());
+                                            setLocalName(master.Cliente);
+                                            setLocalEmail(master["Email Cliente"] || '');
+                                            setLocalCC(master["Email Assessor"] || '');
+                                        }}
                                     />
                                 </div>
                                 <div>
                                     <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase mb-2 tracking-widest">Nome do Cliente</label>
-                                    <input
-                                        className="w-full h-12 px-5 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-black uppercase text-slate-800 dark:text-white focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all"
-                                        type="text"
-                                        value={selectedClient.name}
-                                        onChange={(e) => onUpdateClient(selectedClient.id, { name: e.target.value })}
+                                    <ClientSearch
+                                        initialValue={localName}
+                                        showHeaderStyle
+                                        placeholder="Nome..."
+                                        onQueryChange={setLocalName}
+                                        onSelect={(master) => {
+                                            setLocalAccount(master.Conta.toString());
+                                            setLocalName(master.Cliente);
+                                            setLocalEmail(master["Email Cliente"] || '');
+                                            setLocalCC(master["Email Assessor"] || '');
+                                        }}
                                     />
                                 </div>
                                 <div>
@@ -70,8 +124,8 @@ const ApprovalsLayout: React.FC<ApprovalsLayoutProps> = ({
                                     <input
                                         className="w-full h-12 px-5 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-medium text-slate-600 dark:text-slate-300 focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all"
                                         type="email"
-                                        value={selectedClient.email || ''}
-                                        onChange={(e) => onUpdateClient(selectedClient.id, { email: e.target.value })}
+                                        value={localEmail}
+                                        onChange={(e) => setLocalEmail(e.target.value)}
                                         placeholder="usuario@email.com"
                                     />
                                 </div>
@@ -79,9 +133,9 @@ const ApprovalsLayout: React.FC<ApprovalsLayoutProps> = ({
                                     <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase mb-2 tracking-widest">CC (Cópia)</label>
                                     <input
                                         className="w-full h-12 px-5 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-medium text-slate-600 dark:text-slate-300 focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all"
-                                        type="email"
-                                        value={selectedClient.cc || ''}
-                                        onChange={(e) => onUpdateClient(selectedClient.id, { cc: e.target.value })}
+                                        type="text"
+                                        value={localCC}
+                                        onChange={(e) => setLocalCC(e.target.value)}
                                         placeholder="assessor@katinvest.com.br"
                                     />
                                 </div>
