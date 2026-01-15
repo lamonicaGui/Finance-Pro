@@ -61,21 +61,24 @@ const App: React.FC = () => {
   // Supabase Fetching & Auth
   // 1. Auth & Session Management
   useEffect(() => {
-    // Check active session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session) fetchProfile(session.user.id);
-      setIsAuthLoading(false);
-    });
+    // Listen for auth changes (this is the single source of truth for ALL events, including initial load)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
+      console.log('Auth event:', event, !!currentSession);
 
-    // Listen for auth changes (this is the single source of truth)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setSession(session);
-      if (session) {
-        await fetchProfile(session.user.id);
+      // Prevent rapid fire updates if the session hasn't meaningfully changed
+      setSession(currentSession);
+
+      if (currentSession) {
+        setIsAuthLoading(true); // Ensure we show loading while profile is being fetched
+        try {
+          await fetchProfile(currentSession.user.id);
+        } catch (err) {
+          console.error('Critical auth error:', err);
+        }
       } else {
         setUserProfile(null);
       }
+
       setIsAuthLoading(false);
     });
 
@@ -108,29 +111,33 @@ const App: React.FC = () => {
   }, [session?.user.id]);
 
   const fetchProfile = async (userId: string) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
 
-    if (error) {
-      console.error('Error fetching profile:', error);
-      // Fallback: Tentativa de obter do metadados da sessão se a tabela falhar (ex: erro de RLS)
-      const sessionUser = (await supabase.auth.getSession()).data.session?.user;
-      if (sessionUser) {
-        const fallbackProfile = {
-          id: userId,
-          role: sessionUser.user_metadata?.role || 'usuario_rv',
-          full_name: sessionUser.user_metadata?.full_name || 'Usuário',
-          email: sessionUser.email
-        };
-        setUserProfile(fallbackProfile);
-        handleRoleRedirect(fallbackProfile.role);
+      if (error) {
+        console.warn('Profile not found in table, using metadata fallback:', error.message);
+        // Use session data directly from auth.users (more reliable than calling getSession again)
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const fallbackProfile = {
+            id: userId,
+            role: user.user_metadata?.role || 'usuario_rv',
+            full_name: user.user_metadata?.full_name || 'Usuário',
+            email: user.email
+          };
+          setUserProfile(fallbackProfile);
+          handleRoleRedirect(fallbackProfile.role);
+        }
+      } else {
+        setUserProfile(data);
+        handleRoleRedirect(data.role);
       }
-    } else {
-      setUserProfile(data);
-      handleRoleRedirect(data.role);
+    } catch (err) {
+      console.error('Error in fetchProfile:', err);
     }
   };
 
