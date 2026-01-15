@@ -13,6 +13,7 @@ interface ClientEntry {
     nome: string;
     conta: string;
     email: string;
+    advisorEmail: string;
     movementType: string;
     assetType: string;
     issuer: string;
@@ -36,6 +37,7 @@ const FixedIncomeCompromissadas: React.FC<FixedIncomeCompromissadasProps> = ({ a
             nome: master.Cliente,
             conta: master.Conta,
             email: master["Email Cliente"] || '',
+            advisorEmail: master.Assessor || '',
             movementType: 'Aplicação',
             assetType: 'CDB',
             issuer: 'SAFRA',
@@ -91,7 +93,7 @@ const FixedIncomeCompromissadas: React.FC<FixedIncomeCompromissadasProps> = ({ a
                     value: client.value
                 });
 
-                await copyAndOpenOutlook(client.email, subject, html, plainText, advisorEmail);
+                await copyAndOpenOutlook(client.email, subject, html, plainText, client.advisorEmail);
                 await new Promise(resolve => setTimeout(resolve, 1000));
             }
         } finally {
@@ -267,7 +269,7 @@ const FixedIncomeCompromissadas: React.FC<FixedIncomeCompromissadasProps> = ({ a
                             <span className="material-symbols-outlined text-primary dark:text-white text-3xl animate-pulse">forward_to_inbox</span>
                             <div className="text-center">
                                 <p className="text-[11px] font-black text-white dark:text-slate-900 uppercase tracking-[0.2em] leading-none">Pronto para Disparo</p>
-                                <p className="text-[9px] font-bold text-slate-500 dark:text-slate-800 uppercase tracking-widest mt-1 italic">CC: {advisorEmail || 'assessor@safra.com.br'}</p>
+                                <p className="text-[9px] font-bold text-slate-500 dark:text-slate-800 uppercase tracking-widest mt-1 italic">CC: {selectedClients[0]?.advisorEmail || 'assessor@safra.com.br'}</p>
                             </div>
                         </div>
                         <button
