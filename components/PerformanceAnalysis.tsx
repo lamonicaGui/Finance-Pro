@@ -8,6 +8,7 @@ import {
 import { TradeRecord, Operation, PerformanceSummary } from '../types';
 import { supabase } from '../services/supabase';
 import { useEffect } from 'react';
+import ClientSearch from './ClientSearch';
 
 // Helper to format currency
 const formatCurrency = (value: number) => {
@@ -516,14 +517,14 @@ const PerformanceAnalysis: React.FC = () => {
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-50/50 dark:bg-slate-900/30 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800">
                         <div className="space-y-2">
                             <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Cliente</label>
-                            <select
-                                value={selectedClient}
-                                onChange={(e) => setSelectedClient(e.target.value)}
-                                className="w-full h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all appearance-none cursor-pointer"
-                            >
-                                <option value="">Todos os Clientes</option>
-                                {clientsList.map(c => <option key={c} value={c}>{c}</option>)}
-                            </select>
+                            <ClientSearch
+                                placeholder="Nome, Conta ou Bolsa..."
+                                onSelect={(master) => setSelectedClient(master.Cliente)}
+                                onQueryChange={setSelectedClient}
+                                initialValue={selectedClient}
+                                showHeaderStyle
+                                className="w-full"
+                            />
                         </div>
 
                         <div className="space-y-2">
