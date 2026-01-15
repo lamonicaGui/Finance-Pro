@@ -113,8 +113,8 @@ const ClientSearch: React.FC<ClientSearchProps> = ({
     };
 
     const inputClasses = showHeaderStyle
-        ? "w-full h-12 px-5 text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-black uppercase text-slate-800 dark:text-white focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all shadow-sm cursor-text pointer-events-auto opacity-100"
-        : "block w-full h-11 rounded-2xl border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-2 pl-4 pr-10 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-primary/10 focus:border-primary sm:text-sm font-black uppercase tracking-tight transition-all placeholder:text-slate-400 dark:placeholder:text-slate-600 cursor-text pointer-events-auto opacity-100";
+        ? "w-full h-12 pl-5 pr-12 text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-black uppercase text-slate-800 dark:text-white focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all shadow-sm cursor-text pointer-events-auto opacity-100"
+        : "block w-full h-11 rounded-2xl border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-2 pl-4 pr-12 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-primary/10 focus:border-primary sm:text-sm font-black uppercase tracking-tight transition-all placeholder:text-slate-400 dark:placeholder:text-slate-600 cursor-text pointer-events-auto opacity-100";
 
     return (
         <div ref={wrapperRef} className={`relative ${className}`} style={{ isolate: 'isolate' }}>

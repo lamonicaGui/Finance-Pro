@@ -91,9 +91,9 @@ const PerformanceAnalysis: React.FC = () => {
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
 
-    // Load initial filter options
+    // Load initial clients list
     useEffect(() => {
-        const loadFilters = async () => {
+        const loadClients = async () => {
             const { data: clientsData } = await supabase
                 .from('executed_orders')
                 .select('cliente')
@@ -103,19 +103,37 @@ const PerformanceAnalysis: React.FC = () => {
                 const uniqueClients = Array.from(new Set(clientsData.map(c => c.cliente))).sort();
                 setClientsList(uniqueClients);
             }
+        };
+        loadClients();
+    }, []);
 
-            const { data: tickersData } = await supabase
+    // Load tickers list dynamically based on selected client
+    useEffect(() => {
+        const loadTickers = async () => {
+            let sbQuery = supabase
                 .from('executed_orders')
                 .select('papel')
                 .not('papel', 'is', null);
 
+            if (selectedClient) {
+                // Filter tickers only for this client
+                sbQuery = sbQuery.ilike('cliente', `%${selectedClient.trim()}%`);
+            }
+
+            const { data: tickersData } = await sbQuery;
+
             if (tickersData) {
                 const uniqueTickers = Array.from(new Set(tickersData.map(t => t.papel))).sort();
                 setTickersList(uniqueTickers);
+
+                // If current selected ticker is not in the new list, reset it
+                if (selectedTicker && !uniqueTickers.includes(selectedTicker)) {
+                    setSelectedTicker('');
+                }
             }
         };
-        loadFilters();
-    }, []);
+        loadTickers();
+    }, [selectedClient]);
 
     const fetchDataFromSupabase = async () => {
         setIsProcessing(true);
