@@ -493,7 +493,7 @@ const App: React.FC = () => {
               </button>
               <div className="mt-auto pt-6 px-1 flex flex-col gap-2">
                 <div className="text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-[0.2em] text-center mb-2">
-                  FinancePro v5.2.0
+                  FinancePro v5.3.0
                 </div>
               </div>
             </nav>

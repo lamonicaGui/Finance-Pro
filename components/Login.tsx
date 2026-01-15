@@ -120,7 +120,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 </div>
 
                 <p className="text-[9px] font-black text-slate-600 uppercase tracking-[0.2em] text-center mt-10">
-                    © 2024 KAT INVESTIMENTOS • FINANCEPRO V2.0
+                    © 2024 KAT INVESTIMENTOS • FINANCEPRO V5.3.0
                 </p>
             </div>
         </div>
