@@ -105,6 +105,7 @@ const PerformanceAnalysis: React.FC = () => {
     const [tickersList, setTickersList] = useState<string[]>([]);
     const [selectedClient, setSelectedClient] = useState('');
     const [selectedTicker, setSelectedTicker] = useState('');
+    const [selectedSide, setSelectedSide] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
 
@@ -186,7 +187,10 @@ const PerformanceAnalysis: React.FC = () => {
         });
     };
 
-    const sortedOperations = getSortedOperations();
+    const sortedOperations = getSortedOperations().filter(op => {
+        const matchesType = !selectedSide || op.side.toLowerCase() === selectedSide.toLowerCase();
+        return matchesType;
+    });
 
     const fetchDataFromSupabase = async () => {
         setIsProcessing(true);
@@ -592,7 +596,7 @@ const PerformanceAnalysis: React.FC = () => {
                     </div>
 
                     {/* Filters Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 bg-slate-50/50 dark:bg-slate-900/30 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 relative">
+                    <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 bg-slate-50/50 dark:bg-slate-900/30 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 relative">
                         <div className="space-y-2">
                             <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Cliente</label>
                             <ClientSearch
@@ -614,6 +618,19 @@ const PerformanceAnalysis: React.FC = () => {
                             >
                                 <option value="">Todos os Ativos</option>
                                 {tickersList.map(t => <option key={t} value={t}>{t}</option>)}
+                            </select>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Lado</label>
+                            <select
+                                value={selectedSide}
+                                onChange={(e) => setSelectedSide(e.target.value)}
+                                className="w-full h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all appearance-none cursor-pointer"
+                            >
+                                <option value="">Todos os Lados</option>
+                                <option value="long">Long (Compra)</option>
+                                <option value="short">Short (Venda)</option>
                             </select>
                         </div>
 
@@ -805,46 +822,51 @@ const PerformanceAnalysis: React.FC = () => {
                             <table className="w-full text-left border-collapse">
                                 <thead>
                                     <tr className="border-b border-slate-50 dark:border-slate-800">
-                                        <th onClick={() => handleSort('ticker')} className="px-6 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest cursor-pointer hover:text-primary transition-colors">Ativo</th>
-                                        <th onClick={() => handleSort('entryDate')} className="px-6 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest cursor-pointer hover:text-primary transition-colors">Entrada</th>
-                                        <th onClick={() => handleSort('exitDate')} className="px-6 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest cursor-pointer hover:text-primary transition-colors">Saída</th>
-                                        <th onClick={() => handleSort('entryPrice')} className="px-6 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest cursor-pointer hover:text-primary transition-colors text-right">Preço Entrada</th>
-                                        <th onClick={() => handleSort('exitPrice')} className="px-6 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest cursor-pointer hover:text-primary transition-colors text-right">Preço Saída</th>
-                                        <th onClick={() => handleSort('quantity')} className="px-6 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest cursor-pointer hover:text-primary transition-colors text-center">Quantidade</th>
-                                        <th onClick={() => handleSort('resultBrRL')} className="px-6 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest cursor-pointer hover:text-primary transition-colors text-right">Resultado (R$)</th>
-                                        <th onClick={() => handleSort('resultPercent')} className="px-6 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest cursor-pointer hover:text-primary transition-colors text-right">Resultado (%)</th>
+                                        <th onClick={() => handleSort('ticker')} className="px-4 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest cursor-pointer hover:text-primary transition-colors">Ativo</th>
+                                        <th onClick={() => handleSort('entryDate')} className="px-4 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest cursor-pointer hover:text-primary transition-colors">Entrada</th>
+                                        <th onClick={() => handleSort('exitDate')} className="px-4 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest cursor-pointer hover:text-primary transition-colors">Saída</th>
+                                        <th onClick={() => handleSort('entryPrice')} className="px-4 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest cursor-pointer hover:text-primary transition-colors text-right">Preço In</th>
+                                        <th onClick={() => handleSort('exitPrice')} className="px-4 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest cursor-pointer hover:text-primary transition-colors text-right">Preço Out</th>
+                                        <th onClick={() => handleSort('quantity')} className="px-4 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest cursor-pointer hover:text-primary transition-colors text-center">Qtd</th>
+                                        <th onClick={() => handleSort('side')} className="px-4 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest cursor-pointer hover:text-primary transition-colors text-center">Lado</th>
+                                        <th onClick={() => handleSort('resultBrRL')} className="px-4 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest cursor-pointer hover:text-primary transition-colors text-right">Res. (R$)</th>
+                                        <th onClick={() => handleSort('resultPercent')} className="px-4 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest cursor-pointer hover:text-primary transition-colors text-right">Res. (%)</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
                                     {sortedOperations.map((op) => (
                                         <tr key={op.id} className="hover:bg-slate-50/30 dark:hover:bg-slate-800/20 transition-colors group">
-                                            <td className="px-6 py-5">
+                                            <td className="px-4 py-5">
                                                 <div className="flex flex-col">
                                                     <span className="text-sm font-black text-slate-800 dark:text-white uppercase leading-tight">{op.ticker}</span>
-                                                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tighter truncate max-w-[150px]">{op.cliente}</span>
+                                                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tighter truncate max-w-[120px]">{op.cliente}</span>
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-5 text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-tighter">
+                                            <td className="px-4 py-5 text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-tighter">
                                                 {formatDateToBR(op.entryDate)}
                                             </td>
-                                            <td className="px-6 py-5 text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-tighter">
+                                            <td className="px-4 py-5 text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-tighter">
                                                 {formatDateToBR(op.exitDate)}
                                             </td>
-                                            <td className="px-6 py-5 text-right text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                                            <td className="px-4 py-5 text-right text-[11px] font-bold text-slate-600 dark:text-slate-400">
                                                 {formatCurrency(op.entryPrice)}
                                             </td>
-                                            <td className="px-6 py-5 text-right text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                                            <td className="px-4 py-5 text-right text-[11px] font-bold text-slate-600 dark:text-slate-400">
                                                 {formatCurrency(op.exitPrice)}
                                             </td>
-                                            <td className="px-6 py-5 text-center">
+                                            <td className="px-4 py-5 text-center">
                                                 <span className="text-[11px] font-black text-slate-700 dark:text-slate-200">{op.quantity}</span>
-                                                <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">{op.side}</p>
                                             </td>
-                                            <td className={`px-6 py-5 text-right font-black text-sm ${op.resultBrRL >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                            <td className="px-4 py-5 text-center">
+                                                <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${op.side === 'Long' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600'}`}>
+                                                    {op.side}
+                                                </span>
+                                            </td>
+                                            <td className={`px-4 py-5 text-right font-black text-sm ${op.resultBrRL >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
                                                 {formatCurrency(op.resultBrRL)}
                                             </td>
-                                            <td className="px-6 py-5 text-right">
-                                                <span className={`inline-flex items-center px-4 py-1.5 rounded-full text-[10px] font-black ${op.resultPercent >= 0 ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600' : 'bg-red-50 dark:bg-red-500/10 text-red-500'}`}>
+                                            <td className="px-4 py-5 text-right">
+                                                <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black ${op.resultPercent >= 0 ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600' : 'bg-red-50 dark:bg-red-500/10 text-red-500'}`}>
                                                     {op.resultPercent >= 0 ? '+' : ''}{formatPercent(op.resultPercent)}
                                                 </span>
                                             </td>
