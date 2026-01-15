@@ -714,17 +714,42 @@ const PerformanceAnalysis: React.FC = () => {
                         </button>
                     </div>
 
+                    {/* Client Information Header */}
+                    <div className="bg-white dark:bg-card-dark rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none mb-4 flex flex-wrap gap-8 items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
+                                <span className="material-symbols-outlined text-3xl">person</span>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-0.5">Cliente Selecionado</p>
+                                <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase italic">{selectedClient || (operations[0]?.cliente) || 'Consolidado'}</h3>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-12">
+                            <div>
+                                <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Conta / Login</p>
+                                <p className="text-sm font-black text-slate-700 dark:text-slate-200 uppercase">{operations[0]?.conta || '-'}</p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Período de Análise</p>
+                                <p className="text-sm font-black text-slate-700 dark:text-slate-200 uppercase">
+                                    {startDate ? formatDateToBR(startDate) : (operations[operations.length - 1]?.entryDate ? formatDateToBR(operations[operations.length - 1].entryDate) : '-')} a {endDate ? formatDateToBR(endDate) : (operations[0]?.exitDate ? formatDateToBR(operations[0].exitDate) : '-')}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
                     {/* KPI Cards */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         {[
                             { label: 'Resultado Total', value: formatCurrency(summary.totalResultBrRL), subLabel: `Volume: ${formatCurrency(summary.totalVolume)}`, icon: 'payments', pos: summary.totalResultBrRL >= 0 },
                             { label: 'Rentabilidade (Ponderada)', value: formatPercent(summary.weightedAverageReturnPercent), subLabel: `Média Simples: ${formatPercent(summary.averageReturnPercent)}`, icon: 'query_stats', pos: summary.weightedAverageReturnPercent >= 0 },
-                            { label: 'Taxa de Acerto', value: formatPercent(summary.winRate), subLabel: `${operations.filter(op => op.resultBrRL > 0).length} de ${summary.totalOperations} trades`, icon: 'done_all' },
-                            { label: 'Max Drawdown', value: formatPercent(summary.drawdown || 0), subLabel: 'Risco da Estratégia', icon: 'trending_down', neg: true }
+                            { label: 'Taxa de Acerto', value: formatPercent(summary.winRate), subLabel: `${operations.filter(op => op.resultBrRL > 0).length} de ${summary.totalOperations} trades`, icon: 'done_all' }
                         ].map((kpi, i) => (
                             <div key={i} className="bg-white dark:bg-card-dark rounded-[2rem] p-6 border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none">
                                 <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">{kpi.label}</p>
-                                <h3 className={`text-2xl font-black ${kpi.pos ? 'text-emerald-600' : kpi.neg ? 'text-red-500' : 'text-slate-800 dark:text-white'}`}>
+                                <h3 className={`text-2xl font-black ${kpi.pos ? 'text-emerald-600' : (kpi as any).neg ? 'text-red-500' : 'text-slate-800 dark:text-white'}`}>
                                     {kpi.value}
                                 </h3>
                                 <div className="mt-2 flex items-center gap-1 text-[10px] font-bold text-slate-500 dark:text-slate-400">
