@@ -59,6 +59,7 @@ const App: React.FC = () => {
   const [isLoadingGemini, setIsLoadingGemini] = useState(false);
 
   // Supabase Fetching & Auth
+  // 1. Auth & Session Management
   useEffect(() => {
     // Check active session
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -77,6 +78,13 @@ const App: React.FC = () => {
       }
       setIsAuthLoading(false);
     });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // 2. Data Fetching (Only when authenticated)
+  useEffect(() => {
+    if (!session) return;
 
     const fetchData = async () => {
       const { data: clientsData, error: clientsError } = await supabase
@@ -97,9 +105,7 @@ const App: React.FC = () => {
     };
 
     fetchData();
-
-    return () => subscription.unsubscribe();
-  }, []);
+  }, [session?.user.id]);
 
   const fetchProfile = async (userId: string) => {
     const { data, error } = await supabase
