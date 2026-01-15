@@ -1,16 +1,16 @@
-
 import React, { useState, useEffect } from 'react';
 import { ClientGroup as ClientGroupType, OrderItem } from './types.ts';
 import ClientGroup from './components/ClientGroup.tsx';
 import EmailPreviewModal from './components/EmailPreviewModal.tsx';
 import HawkGenerator from './components/HawkGenerator.tsx';
-import SwingTradeGenerator from './components/SwingTradeGenerator.tsx';
-import ClientSearch from './components/ClientSearch.tsx';
+import SwingTradeGenerator from './components/SwingTradeGenerator';
+import FixedIncomeCompromissadas from './components/FixedIncomeCompromissadas';
+import ClientSearch from './components/ClientSearch';
 import { getGeminiResponse } from './services/gemini.ts';
 import { supabase } from './services/supabase.ts';
 import Login from './components/Login.tsx';
 import UserManagement from './components/UserManagement.tsx';
-import ApprovalsLayout from './components/ApprovalsLayout.tsx';
+import ApprovalsLayout from './components/ApprovalsLayout';
 import PerformanceAnalysis from './components/PerformanceAnalysis.tsx';
 import { Session } from '@supabase/supabase-js';
 import { copyAndOpenOutlook, generateOrderEmailHtml, generateOrderEmailSubject, generateOrderEmailPlainText } from './utils/emailGenerator.ts';
@@ -448,18 +448,36 @@ const App: React.FC = () => {
                 <span className="text-[11px] font-black uppercase tracking-tighter">Swing Trade</span>
               </button>
 
-              <button
-                onClick={() => {
-                  setActiveTab('renda-fixa');
-                  setExpandedCategory('rf');
-                }}
-                className={`w-full flex items-center gap-3 p-3.5 rounded-xl border transition-all text-left shadow-sm ${activeTab === 'renda-fixa'
-                  ? 'bg-primary/10 border-primary text-primary shadow-primary/5'
-                  : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600'}`}
-              >
-                <span className="material-icons-outlined text-[18px]">account_balance_wallet</span>
-                <span className="text-[11px] font-black uppercase tracking-tighter">Renda Fixa</span>
-              </button>
+              <div className="space-y-1 text-left">
+                <button
+                  onClick={() => {
+                    setExpandedCategory(prev => prev === 'rf' ? null : 'rf');
+                  }}
+                  className={`w-full h-full flex items-center justify-between p-3.5 rounded-xl border transition-all text-left shadow-sm ${activeTab.includes('fixed-income') || activeTab === 'renda-fixa'
+                    ? 'bg-primary/10 border-primary text-primary shadow-primary/5'
+                    : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600'}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="material-icons-outlined text-[18px]">account_balance_wallet</span>
+                    <span className="text-[11px] font-black uppercase tracking-tighter">Renda Fixa</span>
+                  </div>
+                  <span className={`material-symbols-outlined text-sm transition-transform ${expandedCategory === 'rf' ? 'rotate-180' : ''}`}>expand_more</span>
+                </button>
+
+                {(expandedCategory === 'rf' || activeTab.includes('fixed-income')) && (
+                  <div className="pl-4 pr-1 pt-1 space-y-1 animate-in slide-in-from-top-2 duration-200">
+                    <button
+                      onClick={() => setActiveTab('fixed-income-compromissadas')}
+                      className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-all text-left text-[10px] font-black uppercase tracking-widest ${activeTab === 'fixed-income-compromissadas'
+                        ? 'text-primary bg-primary/5'
+                        : 'text-slate-500 hover:text-primary hover:bg-primary/5'}`}
+                    >
+                      <span className="material-symbols-outlined text-base">receipt_long</span>
+                      Compromissadas / CDB
+                    </button>
+                  </div>
+                )}
+              </div>
 
               <button
                 onClick={() => {
@@ -475,7 +493,7 @@ const App: React.FC = () => {
               </button>
               <div className="mt-auto pt-6 px-1 flex flex-col gap-2">
                 <div className="text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-[0.2em] text-center mb-2">
-                  FinancePro v4.9.0
+                  FinancePro v5.0.0
                 </div>
               </div>
             </nav>
@@ -614,7 +632,7 @@ const App: React.FC = () => {
               {activeTab === 'ordens' ? 'Fila de Disparo' :
                 activeTab === 'laminas' ? 'Hawk Strategy' :
                   activeTab === 'swing-trade' ? 'Swing Trade Safra' :
-                    activeTab === 'renda-fixa' ? 'Investimentos RF' :
+                    activeTab === 'renda-fixa' || activeTab === 'fixed-income-compromissadas' ? 'Investimentos RF' :
                       activeTab === 'relatorios' ? 'Central de Relatórios' :
                         activeTab === 'gestao-usuarios' ? 'Administração de Usuários' :
                           activeTab === 'analise-performance' ? 'Análise de Performance' :
@@ -624,7 +642,7 @@ const App: React.FC = () => {
               {activeTab === 'ordens' ? 'Disparo de ordens estruturadas via API/Outlook' :
                 activeTab === 'laminas' ? 'Gerador de Lâminas e Cardápios Safra Invest' :
                   activeTab === 'swing-trade' ? 'Recomendações Equity Research' :
-                    activeTab === 'renda-fixa' ? 'CDB, LCI, LCA e Títulos Públicos' :
+                    activeTab === 'renda-fixa' || activeTab === 'fixed-income-compromissadas' ? 'Gestão de Títulos e Ativos Bancários' :
                       activeTab === 'relatorios' ? 'Análise de performance e extratos' :
                         activeTab === 'gestao-usuarios' ? 'Gerenciamento de acessos e perfis' :
                           activeTab === 'analise-performance' ? 'Análise detalhada de rentabilidade' :
@@ -665,13 +683,15 @@ const App: React.FC = () => {
             </div>
           )}
 
-          {activeTab === 'renda-fixa' && (
+          {(activeTab === 'renda-fixa') && (
             <div className="bg-white dark:bg-card-dark rounded-[2.5rem] p-12 border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col items-center justify-center text-center transition-all bg-gradient-to-b from-white to-slate-50/30 dark:from-card-dark dark:to-background-dark/20">
               <span className="material-symbols-outlined text-6xl text-slate-200 dark:text-slate-700 mb-6">construction</span>
               <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase mb-2 tracking-tighter italic">Módulo em Desenvolvimento</h3>
-              <p className="text-slate-500 dark:text-slate-400 max-w-md font-medium">A central de Renda Fixa está sendo integrada ao Backoffice Suite para consolidar suas operações.</p>
+              <p className="text-slate-500 dark:text-slate-400 max-w-md font-medium">Selecione uma opção no menu lateral para começar.</p>
             </div>
           )}
+
+          {activeTab === 'fixed-income-compromissadas' && <FixedIncomeCompromissadas />}
 
           {activeTab === 'laminas' && <HawkGenerator />}
           {activeTab === 'swing-trade' && <SwingTradeGenerator userEmail={userProfile?.email} />}

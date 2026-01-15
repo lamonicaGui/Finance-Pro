@@ -205,3 +205,67 @@ Vencimento: ${order.expiration}`;
 
     return body;
 };
+
+export const generateFixedIncomeEmailSubject = (type: string, account: string) => {
+    return `APROVAÇÃO DE ${type.toUpperCase()} EM RENDA FIXA | CC: ${account}`;
+};
+
+export const generateFixedIncomeEmailHtml = (data: {
+    clientName: string,
+    account: string,
+    movementType: string,
+    asset: string,
+    issuer: string,
+    rate: string,
+    maturity: string,
+    value: number
+}) => {
+    const formattedValue = data.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    return `
+    <div style="font-family: Arial, sans-serif; font-size: 14px; color: #000000; background-color: #ffffff;">
+      <p style="margin-bottom: 24px;">Prezado, bom dia.</p>
+      <p style="margin-bottom: 24px;">Conforme conversado com o seu assessor, gostaria de confirmar sua solicitação na realização da ordem abaixo discriminada, cuja liquidação financeira ocorrerá em sua conta SAFRA:</p>
+      
+      <p style="margin-bottom: 8px;"><strong>Agência 0288 / Conta Corrente:</strong> ${data.account}</p>
+      <p style="margin-bottom: 8px;"><strong>Tipo de Movimentação:</strong> ${data.movementType.toUpperCase()}</p>
+      <p style="margin-bottom: 8px;"><strong>Ativo:</strong> ${data.asset}</p>
+      <p style="margin-bottom: 8px;"><strong>Emissor:</strong> ${data.issuer}</p>
+      <p style="margin-bottom: 8px;"><strong>Taxa de rentabilidade (%a.a):</strong> ${data.rate}% do CDI</p>
+      <p style="margin-bottom: 8px;"><strong>Carência:</strong> Liquidez Diária</p>
+      <p style="margin-bottom: 8px;"><strong>Vencimento:</strong> ${data.maturity}</p>
+      <p style="margin-bottom: 8px;"><strong>Valor:</strong> ${formattedValue}</p>
+      
+      <p style="margin-top: 24px; margin-bottom: 4px;">Atenciosamente,</p>
+      <p style="margin-top: 12px;"><strong>FinancePro Team</strong></p>
+    </div>
+  `;
+};
+
+export const generateFixedIncomeEmailPlainText = (data: {
+    account: string,
+    movementType: string,
+    asset: string,
+    issuer: string,
+    rate: string,
+    maturity: string,
+    value: number
+}) => {
+    const formattedValue = data.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    return `Prezado, bom dia.
+
+Conforme conversado com o seu assessor, gostaria de confirmar sua solicitação na realização da ordem abaixo discriminada, cuja liquidação financeira ocorrerá em sua conta SAFRA:
+
+Agência 0288 / Conta Corrente: ${data.account}
+Tipo de Movimentação: ${data.movementType.toUpperCase()}
+Ativo: ${data.asset}
+Emissor: ${data.issuer}
+Taxa de rentabilidade (%a.a): ${data.rate}% do CDI
+Carência: Liquidez Diária
+Vencimento: ${data.maturity}
+Valor: ${formattedValue}
+
+Atenciosamente,
+FinancePro Team`;
+};
