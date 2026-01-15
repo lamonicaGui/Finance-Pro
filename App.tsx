@@ -61,28 +61,60 @@ const App: React.FC = () => {
   // Supabase Fetching & Auth
   // 1. Auth & Session Management
   useEffect(() => {
-    // Listen for auth changes (this is the single source of truth for ALL events, including initial load)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
-      console.log('Auth event:', event, !!currentSession);
+    let mounted = true;
 
-      // Prevent rapid fire updates if the session hasn't meaningfully changed
-      setSession(currentSession);
+    const initSession = async () => {
+      try {
+        const { data: { session: initialSession } } = await supabase.auth.getSession();
+        if (!mounted) return;
 
-      if (currentSession) {
-        setIsAuthLoading(true); // Ensure we show loading while profile is being fetched
-        try {
-          await fetchProfile(currentSession.user.id);
-        } catch (err) {
-          console.error('Critical auth error:', err);
+        setSession(initialSession);
+        if (initialSession) {
+          await fetchProfile(initialSession.user.id);
         }
-      } else {
-        setUserProfile(null);
+      } catch (err) {
+        console.error('Session init error:', err);
+      } finally {
+        if (mounted) setIsAuthLoading(false);
       }
+    };
 
-      setIsAuthLoading(false);
+    initSession();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
+      console.log('Auth event:', event);
+      if (!mounted) return;
+
+      if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+        setSession(currentSession);
+        if (currentSession) {
+          setIsAuthLoading(true);
+          await fetchProfile(currentSession.user.id);
+          setIsAuthLoading(false);
+        }
+      } else if (event === 'SIGNED_OUT') {
+        setSession(null);
+        setUserProfile(null);
+        setIsAuthLoading(false);
+      } else if (event === 'TOKEN_REFRESHED' && currentSession) {
+        setSession(currentSession);
+      }
     });
 
-    return () => subscription.unsubscribe();
+    // Safety timeout: Never stay loading for more than 5 seconds
+    const safetyTimer = setTimeout(() => {
+      if (mounted && isAuthLoading) {
+        console.warn('Auth loading safety timeout hit');
+        setIsAuthLoading(false);
+      }
+    }, 5000);
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+      clearTimeout(safetyTimer);
+    };
   }, []);
 
   // 2. Data Fetching (Only when authenticated)
