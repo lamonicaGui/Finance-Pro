@@ -18,6 +18,61 @@ const formatPercent = (value: number) => {
     return `${value.toFixed(2)}%`;
 };
 
+// Helpers de normalização ultra-robustos
+const normalizeStr = (s: string) =>
+    String(s || '').toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "") // Remove acentos
+        .replace(/[^a-z0-9]/g, ""); // Remove tudo que não for letra ou número
+
+const parseNum = (val: any): number => {
+    if (typeof val === 'number') return val;
+    if (val === undefined || val === null || val === '') return 0;
+
+    let clean = String(val).replace('R$', '').replace(/\s/g, '').trim();
+
+    // Detectar formato brasileiro (1.234,56) vs US (1,234.56)
+    const hasComma = clean.includes(',');
+    const hasDot = clean.includes('.');
+
+    if (hasComma && hasDot) {
+        const lastComma = clean.lastIndexOf(',');
+        const lastDot = clean.lastIndexOf('.');
+        if (lastComma > lastDot) {
+            clean = clean.replace(/\./g, '').replace(',', '.');
+        } else {
+            clean = clean.replace(/,/g, '');
+        }
+    } else if (hasComma) {
+        clean = clean.replace(',', '.');
+    }
+
+    const parsed = parseFloat(clean);
+    return isNaN(parsed) ? 0 : parsed;
+};
+
+const parseFullDate = (dStr: string) => {
+    if (!dStr) return 0;
+    try {
+        const parts = String(dStr).trim().split(' ');
+        const dateParts = parts[0].split('/');
+        if (dateParts.length < 3) return 0;
+
+        const day = parseInt(dateParts[0]);
+        const month = parseInt(dateParts[1]) - 1;
+        const yr = dateParts[2];
+        const year = yr.length === 2 ? parseInt(`20${yr}`) : parseInt(yr);
+
+        const timeParts = parts[1] ? parts[1].split(':') : ['00', '00'];
+        const hour = parseInt(timeParts[0] || '0');
+        const min = parseInt(timeParts[1] || '0');
+
+        return new Date(year, month, day, hour, min).getTime();
+    } catch (e) {
+        return 0;
+    }
+};
+
 const PerformanceAnalysis: React.FC = () => {
     const [operations, setOperations] = useState<Operation[]>([]);
     const [summary, setSummary] = useState<PerformanceSummary | null>(null);
@@ -63,69 +118,13 @@ const PerformanceAnalysis: React.FC = () => {
         console.log("Iniciando processamento de dados:", data.length, "linhas");
 
         try {
-            // 1. Helper for robust number parsing
-            const parseNum = (val: any): number => {
-                if (typeof val === 'number') return val;
-                if (val === undefined || val === null || val === '') return 0;
-
-                let clean = String(val).replace('R$', '').replace(/\s/g, '').trim();
-
-                const hasComma = clean.includes(',');
-                const hasDot = clean.includes('.');
-
-                if (hasComma && hasDot) {
-                    const lastComma = clean.lastIndexOf(',');
-                    const lastDot = clean.lastIndexOf('.');
-                    if (lastComma > lastDot) {
-                        // BR: 1.234,56
-                        clean = clean.replace(/\./g, '').replace(',', '.');
-                    } else {
-                        // US: 1,234.56
-                        clean = clean.replace(/,/g, '');
-                    }
-                } else if (hasComma) {
-                    // Only comma: assume BR decimal (e.g. 10,00)
-                    clean = clean.replace(',', '.');
-                }
-
-                const parsed = parseFloat(clean);
-                return isNaN(parsed) ? 0 : parsed;
-            };
-
-            // 2. Helper for date parsing
-            const parseFullDate = (dStr: string) => {
-                if (!dStr) return 0;
-                try {
-                    const parts = dStr.trim().split(' ');
-                    const dateParts = parts[0].split('/');
-                    if (dateParts.length < 3) return 0;
-
-                    const day = parseInt(dateParts[0]);
-                    const month = parseInt(dateParts[1]) - 1;
-                    const yearStr = dateParts[2];
-                    const year = yearStr.length === 2 ? parseInt(`20${yearStr}`) : parseInt(yearStr);
-
-                    const timeParts = parts[1] ? parts[1].split(':') : ['00', '00'];
-                    const hour = parseInt(timeParts[0] || '0');
-                    const min = parseInt(timeParts[1] || '0');
-
-                    return new Date(year, month, day, hour, min).getTime();
-                } catch (e) {
-                    return 0;
-                }
-            };
-
-            // 3. Normalization with aggressive column searching
+            // 2. Normalização com mapeamento de colunas por "fuzzy matching"
             const normalizedData: TradeRecord[] = data.map((item) => {
                 const itemKeys = Object.keys(item);
                 const getRaw = (aliases: string[]) => {
-                    for (const alias of aliases) {
-                        const foundKey = itemKeys.find(ik =>
-                            ik.trim().toLowerCase() === alias.trim().toLowerCase()
-                        );
-                        if (foundKey !== undefined) return item[foundKey];
-                    }
-                    return undefined;
+                    const normalizedAliases = aliases.map(a => normalizeStr(a));
+                    const foundKey = itemKeys.find(ik => normalizedAliases.includes(normalizeStr(ik)));
+                    return foundKey !== undefined ? item[foundKey] : undefined;
                 };
 
                 const rawData = getRaw(['Data', 'Data Operação', 'Data Operacao', 'Date']);
@@ -143,7 +142,7 @@ const PerformanceAnalysis: React.FC = () => {
                     codBolsa: String(getRaw(['Cod Bolsa', 'Código da Bolsa', 'CodBolsa']) || ''),
                     cliente: String(getRaw(['Cliente', 'Client', 'Nome']) || 'Desconhecido'),
                     papel: String(rawPapel || ''),
-                    cv: (String(rawCV).toUpperCase().startsWith('V') || String(rawCV).toUpperCase() === 'VENDA' || String(rawCV).toUpperCase() === 'SELL') ? 'V' : 'C',
+                    cv: (String(rawCV).toUpperCase().startsWith('V') || normalizeStr(String(rawCV)) === 'venda' || normalizeStr(String(rawCV)) === 'sell') ? 'V' : 'C',
                     quantidade: Math.abs(parseNum(rawQtd)),
                     precoMedio: parseNum(rawPreco),
                     status: String(rawStatus || ''),
@@ -155,11 +154,12 @@ const PerformanceAnalysis: React.FC = () => {
                     conta: String(rawConta || 'N/A')
                 } as TradeRecord;
             }).filter(item => {
-                if (!item.papel || item.papel.toLowerCase() === 'papel' || item.papel.toLowerCase() === 'ativo') return false;
+                const p = normalizeStr(item.papel);
+                if (!p || p === 'papel' || p === 'ativo' || p === 'symbol') return false;
                 if (item.quantidade <= 0) return false;
 
-                const status = String(item.status).toLowerCase();
-                return status === 'executada' || !item.status || status === 'undefined' || status === '' || status === 'executed';
+                const s = normalizeStr(item.status);
+                return s === 'executada' || s === 'executed' || !item.status || s === '' || s === 'undefined';
             });
 
             console.log("Dados normalizados:", normalizedData.length, "registros válidos");
@@ -200,7 +200,7 @@ const PerformanceAnalysis: React.FC = () => {
                                 cliente: r.cliente,
                                 conta: r.conta,
                                 entryDate: sell.date,
-                                exitDate: r.data,
+                                exitDate: date,
                                 entryPrice: sell.price,
                                 exitPrice: price,
                                 quantity: matchQty,
@@ -230,7 +230,7 @@ const PerformanceAnalysis: React.FC = () => {
                                 cliente: r.cliente,
                                 conta: r.conta,
                                 entryDate: buy.date,
-                                exitDate: r.data,
+                                exitDate: date,
                                 entryPrice: buy.price,
                                 exitPrice: price,
                                 quantity: matchQty,
@@ -318,15 +318,29 @@ const PerformanceAnalysis: React.FC = () => {
         html2pdf().set(opt).from(element).save();
     };
 
-    // Chart Data Preparation
-    const equityCurveData = operations.reduce((acc: any[], op, index) => {
-        const prevBalance = index === 0 ? 0 : acc[index - 1].balance;
-        acc.push({
-            name: op.exitDate,
-            balance: prevBalance + op.resultBrRL
+    // 5. Preparação Robusta dos Dados do Gráfico
+    const equityCurveData = operations.length > 0 ? (() => {
+        // Agrupar por data para ter um ponto por dia e evitar labels repetitivas
+        const dailyBalances: { [key: string]: number } = {};
+        let currentBalance = 0;
+
+        operations.forEach(op => {
+            currentBalance += op.resultBrRL;
+            dailyBalances[op.exitDate] = currentBalance;
         });
-        return acc;
-    }, []);
+
+        const data = Object.keys(dailyBalances).map(date => ({
+            name: date,
+            balance: dailyBalances[date],
+            timestamp: parseFullDate(date)
+        })).sort((a, b) => a.timestamp - b.timestamp);
+
+        // Adicionar ponto inicial zero se não houver
+        if (data.length > 0) {
+            return [{ name: 'Início', balance: 0, timestamp: data[0].timestamp - (1000 * 60 * 60 * 24) }, ...data];
+        }
+        return data;
+    })() : [];
 
     const distData = [
         { name: 'Ganhos', value: operations.filter(op => op.resultBrRL > 0).length, color: '#10b981' },
