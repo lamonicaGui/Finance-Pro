@@ -65,11 +65,10 @@ const PerformanceAnalysis: React.FC = () => {
             // 1. Helper for robust number parsing
             const parseNum = (val: any): number => {
                 if (typeof val === 'number') return val;
-                if (!val) return 0;
+                if (val === undefined || val === null || val === '') return 0;
 
-                let clean = String(val).replace('R$', '').trim();
+                let clean = String(val).replace('R$', '').replace(/\s/g, '').trim();
 
-                // Detect Brazilian format (e.g., 1.234,56) vs US (1,234.56)
                 const hasComma = clean.includes(',');
                 const hasDot = clean.includes('.');
 
@@ -77,16 +76,14 @@ const PerformanceAnalysis: React.FC = () => {
                     const lastComma = clean.lastIndexOf(',');
                     const lastDot = clean.lastIndexOf('.');
                     if (lastComma > lastDot) {
-                        // Brazilian: dots are thousands, comma is decimal
+                        // BR: 1.234,56
                         clean = clean.replace(/\./g, '').replace(',', '.');
                     } else {
-                        // US: commas are thousands, dot is decimal
+                        // US: 1,234.56
                         clean = clean.replace(/,/g, '');
                     }
                 } else if (hasComma) {
-                    // Check if comma is decimal (likely 12,34) or thousands (likely 1,234)
-                    // If there's exactly 3 digits after the comma, it MIGHT be thousands, 
-                    // but in finance, it's safer to assume comma is decimal if it's the only separator.
+                    // Only comma: assume BR decimal (e.g. 10,00)
                     clean = clean.replace(',', '.');
                 }
 
@@ -98,71 +95,75 @@ const PerformanceAnalysis: React.FC = () => {
             const parseFullDate = (dStr: string) => {
                 if (!dStr) return 0;
                 try {
-                    // Expecting DD/MM/YYYY HH:MM or DD/MM/YYYY
-                    const parts = dStr.split(' ');
+                    const parts = dStr.trim().split(' ');
                     const dateParts = parts[0].split('/');
                     if (dateParts.length < 3) return 0;
 
                     const day = parseInt(dateParts[0]);
                     const month = parseInt(dateParts[1]) - 1;
-                    const year = parseInt(dateParts[2]);
+                    const yearStr = dateParts[2];
+                    const year = yearStr.length === 2 ? parseInt(`20${yearStr}`) : parseInt(yearStr);
 
                     const timeParts = parts[1] ? parts[1].split(':') : ['00', '00'];
                     const hour = parseInt(timeParts[0] || '0');
                     const min = parseInt(timeParts[1] || '0');
 
-                    const d = new Date(year, month, day, hour, min);
-                    return d.getTime();
+                    return new Date(year, month, day, hour, min).getTime();
                 } catch (e) {
                     return 0;
                 }
             };
 
-            // 3. Normalization and initial filtering
+            // 3. Normalization with aggressive column searching
             const normalizedData: TradeRecord[] = data.map((item) => {
-                const getRaw = (keys: string[]) => {
-                    for (const k of keys) {
-                        if (item[k] !== undefined && item[k] !== null) return item[k];
+                const itemKeys = Object.keys(item);
+                const getRaw = (aliases: string[]) => {
+                    for (const alias of aliases) {
+                        const foundKey = itemKeys.find(ik =>
+                            ik.trim().toLowerCase() === alias.trim().toLowerCase()
+                        );
+                        if (foundKey !== undefined) return item[foundKey];
                     }
                     return undefined;
                 };
 
-                const rawData = getRaw(['Data']);
-                const rawPapel = getRaw(['Papel', 'Ativo']);
-                const rawCV = getRaw(['C/V', 'CV', 'Operação', 'Operacao']);
-                const rawQtd = getRaw(['Qtd. Exec.', 'Quantidade Executada', 'Quantidade']);
-                const rawPreco = getRaw(['Prc. Médio', 'Preço Médio', 'Preco']);
-                const rawStatus = getRaw(['Status', 'Status da Ordem']);
-                const rawDataHora = getRaw(['Data / Hora', 'Data/Hora']);
-                const rawVolume = getRaw(['Volume', 'Volume Financeiro']);
-                const rawConta = getRaw(['Conta']);
+                const rawData = getRaw(['Data', 'Data Operação', 'Data Operacao', 'Date']);
+                const rawPapel = getRaw(['Papel', 'Ativo', 'Ticker', 'Symbol', 'Ação', 'Acao']);
+                const rawCV = getRaw(['C/V', 'CV', 'Operação', 'Operacao', 'Lado', 'Side', 'Tipo']);
+                const rawQtd = getRaw(['Qtd. Exec.', 'Quantidade Executada', 'Quantidade', 'Qtd', 'Qtde', 'Quantity']);
+                const rawPreco = getRaw(['Prc. Médio', 'Preço Médio', 'Preço', 'Preco', 'Pm', 'Price']);
+                const rawStatus = getRaw(['Status', 'Status da Ordem', 'Order Status']);
+                const rawDataHora = getRaw(['Data / Hora', 'Data/Hora', 'Timestamp', 'Date Time']);
+                const rawVolume = getRaw(['Volume', 'Volume Financeiro', 'Financeiro', 'Total']);
+                const rawConta = getRaw(['Conta', 'Account', 'Cta']);
 
                 return {
                     data: String(rawData || ''),
                     codBolsa: String(getRaw(['Cod Bolsa', 'Código da Bolsa', 'CodBolsa']) || ''),
-                    cliente: String(getRaw(['Cliente']) || 'Desconhecido'),
+                    cliente: String(getRaw(['Cliente', 'Client', 'Nome']) || 'Desconhecido'),
                     papel: String(rawPapel || ''),
-                    cv: (String(rawCV).toUpperCase().startsWith('V') || String(rawCV).toUpperCase() === 'VENDA') ? 'V' : 'C',
+                    cv: (String(rawCV).toUpperCase().startsWith('V') || String(rawCV).toUpperCase() === 'VENDA' || String(rawCV).toUpperCase() === 'SELL') ? 'V' : 'C',
                     quantidade: Math.abs(parseNum(rawQtd)),
                     precoMedio: parseNum(rawPreco),
                     status: String(rawStatus || ''),
                     dataHora: String(rawDataHora || rawData || ''),
                     volume: parseNum(rawVolume),
                     liquidacao: String(getRaw(['Liquidação', 'Data de Liquidação']) || ''),
-                    assessor: String(getRaw(['Assessor']) || ''),
+                    assessor: String(getRaw(['Assessor', 'Broker']) || ''),
                     especialista: String(getRaw(['Especialista']) || ''),
                     conta: String(rawConta || 'N/A')
                 } as TradeRecord;
             }).filter(item => {
-                if (!item.papel || item.papel === 'Papel' || item.papel === 'Ativo') return false;
-                // Keep only executed orders or unspecified (which we assume executed)
+                if (!item.papel || item.papel.toLowerCase() === 'papel' || item.papel.toLowerCase() === 'ativo') return false;
+                if (item.quantidade <= 0) return false;
+
                 const status = String(item.status).toLowerCase();
-                return status === 'executada' || !item.status || status === 'undefined' || status === '';
+                return status === 'executada' || !item.status || status === 'undefined' || status === '' || status === 'executed';
             });
 
             console.log("Dados normalizados:", normalizedData.length, "registros válidos");
 
-            // 4. Group by Account + Ticker (Client is usually implicit in account)
+            // 4. Group by Account + Ticker
             const groups: { [key: string]: TradeRecord[] } = {};
             normalizedData.forEach(record => {
                 const key = `${record.conta}-${record.papel}`;
@@ -172,34 +173,25 @@ const PerformanceAnalysis: React.FC = () => {
 
             const allOperations: Operation[] = [];
 
-            // 5. FIFO Logic for each group
+            // 5. FIFO Logic
             Object.keys(groups).forEach(key => {
-                // IMPORTANT: Sort by absolute timestamp before matching
                 const records = groups[key].sort((a, b) => parseFullDate(a.dataHora) - parseFullDate(b.dataHora));
-
-                const buys: { qty: number, price: number, date: string, dataHora: string, volume: number }[] = [];
-                const sells: { qty: number, price: number, date: string, dataHora: string, volume: number }[] = [];
+                const buys: { qty: number, price: number, date: string, dataHora: string }[] = [];
+                const sells: { qty: number, price: number, date: string, dataHora: string }[] = [];
 
                 records.forEach(r => {
                     const qty = r.quantidade;
                     const price = r.precoMedio;
                     const date = r.data;
                     const dataHora = r.dataHora;
-                    const volume = r.volume || (qty * price);
-
-                    if (qty <= 0) return;
 
                     if (r.cv === 'C') {
                         let remainingQty = qty;
-                        // Match against open sells (Short Cover)
                         while (remainingQty > 0 && sells.length > 0) {
                             const sell = sells[0];
                             const matchQty = Math.min(remainingQty, sell.qty);
-
-                            const matchEntryPrice = sell.price;
-                            const matchExitPrice = price;
-                            const resultBrRL = (matchEntryPrice - matchExitPrice) * matchQty;
-                            const resultPercent = matchEntryPrice === 0 ? 0 : ((matchEntryPrice / matchExitPrice) - 1) * 100;
+                            const resultBrRL = (sell.price - price) * matchQty;
+                            const resultPercent = price === 0 ? 0 : ((sell.price / price) - 1) * 100;
 
                             allOperations.push({
                                 id: Math.random().toString(36).substr(2, 9),
@@ -208,10 +200,10 @@ const PerformanceAnalysis: React.FC = () => {
                                 conta: r.conta,
                                 entryDate: sell.date,
                                 exitDate: r.data,
-                                entryPrice: matchEntryPrice,
-                                exitPrice: matchExitPrice,
+                                entryPrice: sell.price,
+                                exitPrice: price,
                                 quantity: matchQty,
-                                volume: (matchQty * matchEntryPrice) + (matchQty * matchExitPrice),
+                                volume: (matchQty * sell.price) + (matchQty * price),
                                 resultBrRL,
                                 resultPercent,
                                 durationDays: Math.max(0, Math.ceil(Math.abs(parseFullDate(dataHora) - parseFullDate(sell.dataHora)) / (1000 * 60 * 60 * 24))),
@@ -222,18 +214,14 @@ const PerformanceAnalysis: React.FC = () => {
                             sell.qty -= matchQty;
                             if (sell.qty <= 0) sells.shift();
                         }
-                        if (remainingQty > 0) buys.push({ qty: remainingQty, price, date, dataHora, volume: (remainingQty * price) });
+                        if (remainingQty > 0) buys.push({ qty: remainingQty, price, date, dataHora });
                     } else {
                         let remainingQty = qty;
-                        // Match against open buys (Long Close)
                         while (remainingQty > 0 && buys.length > 0) {
                             const buy = buys[0];
                             const matchQty = Math.min(remainingQty, buy.qty);
-
-                            const matchEntryPrice = buy.price;
-                            const matchExitPrice = price;
-                            const resultBrRL = (matchExitPrice - matchEntryPrice) * matchQty;
-                            const resultPercent = matchEntryPrice === 0 ? 0 : ((matchExitPrice / matchEntryPrice) - 1) * 100;
+                            const resultBrRL = (price - buy.price) * matchQty;
+                            const resultPercent = buy.price === 0 ? 0 : ((price / buy.price) - 1) * 100;
 
                             allOperations.push({
                                 id: Math.random().toString(36).substr(2, 9),
@@ -242,10 +230,10 @@ const PerformanceAnalysis: React.FC = () => {
                                 conta: r.conta,
                                 entryDate: buy.date,
                                 exitDate: r.data,
-                                entryPrice: matchEntryPrice,
-                                exitPrice: matchExitPrice,
+                                entryPrice: buy.price,
+                                exitPrice: price,
                                 quantity: matchQty,
-                                volume: (matchQty * matchEntryPrice) + (matchQty * matchExitPrice),
+                                volume: (matchQty * buy.price) + (matchQty * price),
                                 resultBrRL,
                                 resultPercent,
                                 durationDays: Math.max(0, Math.ceil(Math.abs(parseFullDate(dataHora) - parseFullDate(buy.dataHora)) / (1000 * 60 * 60 * 24))),
@@ -256,12 +244,11 @@ const PerformanceAnalysis: React.FC = () => {
                             buy.qty -= matchQty;
                             if (buy.qty <= 0) buys.shift();
                         }
-                        if (remainingQty > 0) sells.push({ qty: remainingQty, price, date, dataHora, volume: (remainingQty * price) });
+                        if (remainingQty > 0) sells.push({ qty: remainingQty, price, date, dataHora });
                     }
                 });
             });
 
-            // 6. Global Sorting by Exit Date
             const sortedOps = allOperations.sort((a, b) => parseFullDate(a.exitDate) - parseFullDate(b.exitDate));
             setOperations(sortedOps);
 
