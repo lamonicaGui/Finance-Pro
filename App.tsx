@@ -376,194 +376,196 @@ const App: React.FC = () => {
     return <Login onLoginSuccess={() => setIsAuthLoading(true)} />;
   }
 
-  if (activeTab === 'ordens') {
-    return (
-      <ApprovalsLayout
-        clients={clients}
-        selectedClientId={selectedClientId}
-        onSelectClient={setSelectedClientId}
-        onAddClient={addClient}
-        onAddClientFromMaster={addClientFromMaster}
-        onUpdateClient={updateClient}
-        onRemoveClient={removeClient}
-        onAddOrder={addOrder}
-        onUpdateOrder={updateOrder}
-        onRemoveOrder={removeOrder}
-        onSendEmail={(client) => setPreviewClient(client)}
-        onSendAll={handleSendAll}
-        onLogout={handleLogout}
-        userProfile={userProfile}
-        onSwitchTab={(tab) => {
-          setActiveTab(tab);
-          if (tab === 'laminas' || tab === 'swing-trade' || tab === 'ordens') setExpandedCategory('rv');
-          if (tab === 'renda-fixa') setExpandedCategory('rf');
-          if (tab === 'gestao-usuarios') setExpandedCategory('config');
-        }}
-      />
-    );
-  }
+  // Removed early return for 'ordens' to unify layout
 
   return (
-    <div className="flex h-screen bg-[#f6f8f7] overflow-hidden">
-      <aside className="w-72 bg-[#102218] flex flex-col border-r border-white/5 shrink-0 z-50">
-        <div className="p-8">
-          <div className="flex items-center gap-3 mb-10">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-primary shadow-inner">
-              <span className="material-symbols-outlined text-2xl font-bold">account_balance</span>
+    <div className="flex h-screen bg-background-light dark:bg-background-dark text-slate-800 dark:text-slate-200 overflow-hidden font-display">
+      {/* Sidebar V2 */}
+      <aside className="w-80 bg-card-light dark:bg-card-dark border-r border-slate-200 dark:border-slate-800 flex flex-col shrink-0">
+        <div className="p-6 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary shadow-inner">
+                <span className="material-symbols-outlined text-2xl font-bold">account_balance</span>
+              </div>
+              <h1 className="text-xl font-black tracking-tight text-slate-900 dark:text-white uppercase leading-tight italic">
+                FINANCEPRO
+              </h1>
             </div>
-            <div>
-              <h2 className="text-xl font-black tracking-tighter text-white">FINANCEPRO</h2>
-              <p className="text-[9px] font-black text-primary uppercase tracking-[0.2em] opacity-80">Backoffice Suite</p>
-            </div>
+            <button
+              onClick={handleLogout}
+              className="h-8 w-8 rounded-lg bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-slate-400 hover:text-red-500 transition-colors"
+              title="Sair"
+            >
+              <span className="material-icons-outlined text-sm">logout</span>
+            </button>
           </div>
-
-          <nav className="flex flex-col gap-4">
-            {/* Renda Fixa */}
-            {hasAccess('renda-fixa') && (
-              <div className="flex flex-col gap-1">
-                <button
-                  onClick={() => setExpandedCategory(expandedCategory === 'rf' ? null : 'rf')}
-                  className={`flex items-center justify-between w-full px-5 py-3 rounded-xl text-[11px] font-black uppercase transition-all ${expandedCategory === 'rf' ? 'text-white bg-white/5' : 'text-slate-500 hover:text-white'}`}
-                >
-                  <div className="flex items-center gap-4">
-                    <span className="material-symbols-outlined text-[20px]">account_balance_wallet</span>
-                    Renda Fixa
-                  </div>
-                  <span className={`material-symbols-outlined text-[18px] transition-transform ${expandedCategory === 'rf' ? 'rotate-180' : ''}`}>expand_more</span>
-                </button>
-                {expandedCategory === 'rf' && (
-                  <div className="flex flex-col gap-1 pl-4 mt-1 animate-in slide-in-from-top-2 duration-200">
-                    <button
-                      onClick={() => setActiveTab('renda-fixa')}
-                      className={`flex items-center gap-4 px-5 py-2.5 rounded-xl text-[10px] font-bold uppercase transition-all ${activeTab === 'renda-fixa' ? 'text-primary' : 'text-slate-500 hover:text-slate-300'}`}
-                    >
-                      Dashboard RF
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Renda Variável */}
-            {hasAccess('ordens') && (
-              <div className="flex flex-col gap-1">
-                <button
-                  onClick={() => setExpandedCategory(expandedCategory === 'rv' ? null : 'rv')}
-                  className={`flex items-center justify-between w-full px-5 py-3 rounded-xl text-[11px] font-black uppercase transition-all ${expandedCategory === 'rv' ? 'text-white bg-white/5' : 'text-slate-500 hover:text-white'}`}
-                >
-                  <div className="flex items-center gap-4">
-                    <span className="material-symbols-outlined text-[20px]">query_stats</span>
-                    Renda Variável
-                  </div>
-                  <span className={`material-symbols-outlined text-[18px] transition-transform ${expandedCategory === 'rv' ? 'rotate-180' : ''}`}>expand_more</span>
-                </button>
-                {expandedCategory === 'rv' && (
-                  <div className="flex flex-col gap-1 pl-4 mt-1 animate-in slide-in-from-top-2 duration-200">
-                    <button
-                      onClick={() => setActiveTab('ordens')}
-                      className={`flex items-center gap-4 px-5 py-2.5 rounded-xl text-[10px] font-bold uppercase transition-all ${activeTab === 'ordens' ? 'text-primary' : 'text-slate-500 hover:text-slate-300'}`}
-                    >
-                      Execução de Ordens
-                    </button>
-                    <button
-                      onClick={() => setActiveTab('laminas')}
-                      className={`flex items-center gap-4 px-5 py-2.5 rounded-xl text-[10px] font-bold uppercase transition-all ${activeTab === 'laminas' ? 'text-primary' : 'text-slate-500 hover:text-slate-300'}`}
-                    >
-                      Gerador de Lâminas
-                    </button>
-                    <button
-                      onClick={() => setActiveTab('swing-trade')}
-                      className={`flex items-center gap-4 px-5 py-2.5 rounded-xl text-[10px] font-bold uppercase transition-all ${activeTab === 'swing-trade' ? 'text-primary' : 'text-slate-500 hover:text-slate-300'}`}
-                    >
-                      Swing Trade
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Relatórios */}
-            {hasAccess('relatorios') && (
-              <div className="flex flex-col gap-1">
-                <button
-                  onClick={() => setExpandedCategory(expandedCategory === 'rel' ? null : 'rel')}
-                  className={`flex items-center justify-between w-full px-5 py-3 rounded-xl text-[11px] font-black uppercase transition-all ${expandedCategory === 'rel' ? 'text-white bg-white/5' : 'text-slate-500 hover:text-white'}`}
-                >
-                  <div className="flex items-center gap-4">
-                    <span className="material-symbols-outlined text-[20px]">description</span>
-                    Relatórios
-                  </div>
-                  <span className={`material-symbols-outlined text-[18px] transition-transform ${expandedCategory === 'rel' ? 'rotate-180' : ''}`}>expand_more</span>
-                </button>
-                {expandedCategory === 'rel' && (
-                  <div className="flex flex-col gap-1 pl-4 mt-1 animate-in slide-in-from-top-2 duration-200">
-                    <button
-                      onClick={() => setActiveTab('relatorios')}
-                      className={`flex items-center gap-4 px-5 py-2.5 rounded-xl text-[10px] font-bold uppercase transition-all ${activeTab === 'relatorios' ? 'text-primary' : 'text-slate-500 hover:text-slate-300'}`}
-                    >
-                      Performance Anual
-                    </button>
-                    <button
-                      onClick={() => setActiveTab('analise-performance')}
-                      className={`flex items-center gap-4 px-5 py-2.5 rounded-xl text-[10px] font-bold uppercase transition-all ${activeTab === 'analise-performance' ? 'text-primary' : 'text-slate-500 hover:text-slate-300'}`}
-                    >
-                      Análise de Performance
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {hasAccess('gemini') && (
-              <div className="mt-4 pt-4 border-t border-white/5">
-                <button
-                  onClick={() => setActiveTab('gemini')}
-                  className={`flex items-center gap-4 px-5 py-3 rounded-xl text-[11px] font-black uppercase transition-all w-full ${activeTab === 'gemini' ? 'bg-primary text-[#102218]' : 'text-slate-500 hover:bg-white/5 hover:text-white'}`}
-                >
-                  <span className="material-symbols-outlined text-[20px]">smart_toy</span>
-                  Gemini AI
-                </button>
-              </div>
-            )}
-
-            {/* Configurações (Apenas ADM) */}
-            {userProfile?.role === 'adm' && (
-              <div className="flex flex-col gap-1 mt-4">
-                <button
-                  onClick={() => setExpandedCategory(expandedCategory === 'config' ? null : 'config' as any)}
-                  className={`flex items-center justify-between w-full px-5 py-3 rounded-xl text-[11px] font-black uppercase transition-all ${expandedCategory === 'config' as any ? 'text-white bg-white/5' : 'text-slate-500 hover:text-white'}`}
-                >
-                  <div className="flex items-center gap-4">
-                    <span className="material-symbols-outlined text-[20px]">settings</span>
-                    Configurações
-                  </div>
-                  <span className={`material-symbols-outlined text-[18px] transition-transform ${expandedCategory === 'config' as any ? 'rotate-180' : ''}`}>expand_more</span>
-                </button>
-                {expandedCategory === 'config' as any && (
-                  <div className="flex flex-col gap-1 pl-4 mt-1 animate-in slide-in-from-top-2 duration-200">
-                    <button
-                      onClick={() => setActiveTab('gestao-usuarios')}
-                      className={`flex items-center gap-4 px-5 py-2.5 rounded-xl text-[10px] font-bold uppercase transition-all ${activeTab === 'gestao-usuarios' ? 'text-primary' : 'text-slate-500 hover:text-slate-300'}`}
-                    >
-                      <span className="material-symbols-outlined text-[16px]">manage_accounts</span>
-                      Gestão de Usuários
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </nav>
+          <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em]">Backoffice Suite</p>
         </div>
 
-        <div className="mt-auto p-8 border-t border-white/5 space-y-6">
-          <div className="flex items-center justify-between gap-3">
+        <div className="flex-1 overflow-y-auto p-5 space-y-8 custom-scrollbar">
+          {/* Navigation */}
+          <div className="space-y-4">
+            <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest px-1">Módulos</h3>
+
+            <nav className="flex flex-col gap-2">
+              <button
+                onClick={() => {
+                  setActiveTab('ordens');
+                  setExpandedCategory('rv');
+                }}
+                className={`w-full flex items-center gap-3 p-3.5 rounded-xl border transition-all text-left shadow-sm ${activeTab === 'ordens'
+                  ? 'bg-primary/10 border-primary text-primary shadow-primary/5'
+                  : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600'}`}
+              >
+                <span className="material-icons-outlined text-[18px]">query_stats</span>
+                <span className="text-[11px] font-black uppercase tracking-tighter">Execução de Ordens</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveTab('laminas');
+                  setExpandedCategory('rv');
+                }}
+                className={`w-full flex items-center gap-3 p-3.5 rounded-xl border transition-all text-left shadow-sm ${activeTab === 'laminas'
+                  ? 'bg-primary/10 border-primary text-primary shadow-primary/5'
+                  : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600'}`}
+              >
+                <span className="material-icons-outlined text-[18px]">description</span>
+                <span className="text-[11px] font-black uppercase tracking-tighter">Hawk Strategy</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveTab('swing-trade');
+                  setExpandedCategory('rv');
+                }}
+                className={`w-full flex items-center gap-3 p-3.5 rounded-xl border transition-all text-left shadow-sm ${activeTab === 'swing-trade'
+                  ? 'bg-primary/10 border-primary text-primary shadow-primary/5'
+                  : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600'}`}
+              >
+                <span className="material-icons-outlined text-[18px]">trending_up</span>
+                <span className="text-[11px] font-black uppercase tracking-tighter">Swing Trade</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveTab('renda-fixa');
+                  setExpandedCategory('rf');
+                }}
+                className={`w-full flex items-center gap-3 p-3.5 rounded-xl border transition-all text-left shadow-sm ${activeTab === 'renda-fixa'
+                  ? 'bg-primary/10 border-primary text-primary shadow-primary/5'
+                  : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600'}`}
+              >
+                <span className="material-icons-outlined text-[18px]">account_balance_wallet</span>
+                <span className="text-[11px] font-black uppercase tracking-tighter">Renda Fixa</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveTab('analise-performance');
+                  setExpandedCategory('rel');
+                }}
+                className={`w-full flex items-center gap-3 p-3.5 rounded-xl border transition-all text-left shadow-sm ${activeTab === 'analise-performance'
+                  ? 'bg-primary/10 border-primary text-primary shadow-primary/5'
+                  : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600'}`}
+              >
+                <span className="material-icons-outlined text-[18px]">analytics</span>
+                <span className="text-[11px] font-black uppercase tracking-tighter">Análise Performance</span>
+              </button>
+            </nav>
+          </div>
+
+          {activeTab === 'ordens' && (
+            <div className="space-y-6 pt-6 border-t border-slate-100 dark:border-slate-800 animate-in slide-in-from-top-4 duration-300">
+              <div className="space-y-3">
+                <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest px-1 flex justify-between">
+                  Fila de Disparo
+                  <span className="text-primary">{clients.length} Grupos</span>
+                </h3>
+
+                <div className="space-y-2">
+                  {clients.map(client => (
+                    <button
+                      key={client.id}
+                      onClick={() => setSelectedClientId(client.id)}
+                      className={`w-full flex items-center justify-between p-3.5 rounded-xl border transition-all text-left shadow-sm ${selectedClientId === client.id
+                        ? 'bg-primary/5 border-primary/30 text-primary'
+                        : 'bg-slate-50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-200 dark:hover:border-slate-700'}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="material-icons-outlined text-[18px] opacity-70">
+                          {client.orders.length > 0 ? 'layers' : 'person'}
+                        </span>
+                        <div>
+                          <div className={`text-[10px] font-black uppercase tracking-tighter line-clamp-1 ${selectedClientId === client.id ? 'text-primary' : 'text-slate-800 dark:text-slate-200'}`}>
+                            {client.name || 'Sem Nome'}
+                          </div>
+                          <div className="text-[8px] font-bold opacity-70 uppercase tracking-widest">
+                            {client.account || '---'} {client.orders.length > 0 && `| ${client.orders.length} ordens`}
+                          </div>
+                        </div>
+                      </div>
+                      {client.orders.length > 0 && (
+                        <span className={`h-1.5 w-1.5 rounded-full ${selectedClientId === client.id ? 'bg-primary animate-pulse' : 'bg-emerald-500'}`}></span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest px-1">Ações Rápidas</h3>
+                <button
+                  onClick={addClient}
+                  className="w-full flex items-center gap-3 p-3 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:bg-primary/[0.02] transition-all text-left group"
+                >
+                  <div className="bg-slate-100 dark:bg-slate-800 p-2 rounded-lg group-hover:bg-primary/10 transition-all">
+                    <span className="material-icons-outlined text-sm text-slate-500 dark:text-slate-400 group-hover:text-primary">person_add</span>
+                  </div>
+                  <span className="text-[9px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest">Novo Cliente</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Artificial Intelligence Section */}
+          <div className="pt-6 border-t border-slate-100 dark:border-slate-800">
+            <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest px-1 mb-4">Inteligência Artificial</h3>
+            <button
+              onClick={() => setActiveTab('gemini')}
+              className={`w-full flex items-center gap-4 px-5 py-3 rounded-xl text-[11px] font-black uppercase transition-all shadow-sm ${activeTab === 'gemini'
+                ? 'bg-slate-900 border border-slate-800 text-primary'
+                : 'text-slate-500 hover:bg-white/5 hover:text-white border border-transparent'}`}
+            >
+              <span className="material-symbols-outlined text-[20px]">smart_toy</span>
+              Gemini AI
+            </button>
+          </div>
+
+          {/* Settings Section (ADM) */}
+          {userProfile?.role === 'adm' && (
+            <div className="pt-4 space-y-2">
+              <button
+                onClick={() => setActiveTab('gestao-usuarios')}
+                className={`w-full flex items-center gap-3 p-2.5 rounded-xl text-slate-500 hover:text-primary hover:bg-primary/5 transition-all text-left ${activeTab === 'gestao-usuarios' ? 'text-primary bg-primary/5' : ''}`}
+              >
+                <span className="material-icons-outlined text-lg">admin_panel_settings</span>
+                <span className="text-[10px] font-black uppercase tracking-widest">Gestão de Usuários</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-auto p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
+          <div className="flex items-center justify-between gap-3 mb-6">
             <div className="flex items-center gap-3">
               <div className="relative">
                 <img src={userProfile?.avatar_url || "https://picsum.photos/100/100?random=10"} alt="Avatar" className="rounded-xl h-10 w-10 border border-white/10" />
-                <span className="absolute bottom-0 right-0 w-3 h-3 bg-primary border-2 border-[#102218] rounded-full"></span>
+                <span className="absolute bottom-0 right-0 w-3 h-3 bg-primary border-2 border-white dark:border-[#102218] rounded-full"></span>
               </div>
               <div>
-                <p className="text-[10px] font-black text-white uppercase tracking-tight truncate max-w-[120px]">
+                <p className="text-[10px] font-black text-slate-800 dark:text-white uppercase tracking-tight truncate max-w-[120px]">
                   {userProfile?.full_name || 'Usuário'}
                 </p>
                 <p className="text-[9px] font-bold text-primary uppercase tracking-tighter italic">
@@ -571,132 +573,87 @@ const App: React.FC = () => {
                 </p>
               </div>
             </div>
+          </div>
+
+          {activeTab === 'ordens' && (
             <button
-              onClick={handleLogout}
-              className="h-8 w-8 flex items-center justify-center rounded-lg bg-white/5 text-slate-400 hover:text-red-400 hover:bg-red-400/10 transition-all"
-              title="Sair do Sistema"
+              onClick={handleSendAll}
+              className="w-full bg-slate-900 border border-slate-800 dark:bg-primary hover:bg-black dark:hover:bg-primary-dark text-primary dark:text-white font-black py-4 px-6 rounded-[1.25rem] flex items-center justify-center gap-3 transition-all shadow-xl shadow-primary/10 active:scale-95 group"
             >
-              <span className="material-symbols-outlined text-sm">logout</span>
+              <span className="material-icons-outlined text-lg group-hover:rotate-12 transition-transform">rocket_launch</span>
+              <span className="text-xs uppercase tracking-[0.2em]">Disparar Lote</span>
             </button>
-          </div>
+          )}
 
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-[9px] font-black text-slate-500 uppercase tracking-widest">
-              <span>Status Sync</span>
-              <span className="text-primary">Ativo</span>
-            </div>
-            <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
-              <div className="h-full w-2/3 bg-primary/40 rounded-full"></div>
-            </div>
-          </div>
-
-          <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest text-center pt-4">
+          <p className="text-[9px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-widest text-center pt-6">
             © 2024 FINANCEPRO
           </p>
         </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto bg-[#f6f8f7] selection:bg-primary/20">
-        <header className="sticky top-0 z-40 w-full px-10 py-6 flex items-center justify-between bg-[#f6f8f7]/80 backdrop-blur-md">
+      <main className="flex-1 overflow-y-auto custom-scrollbar flex flex-col bg-[#fdfdfd] dark:bg-background-dark selection:bg-primary/20">
+        <header className="sticky top-0 z-40 w-full px-10 py-6 flex items-center justify-between bg-white/80 dark:bg-card-dark/80 backdrop-blur-xl border-b border-slate-200 dark:border-slate-800">
           <div>
-            <h1 className="text-3xl font-black text-[#102218] tracking-tighter uppercase">
-              {activeTab === 'ordens' ? 'Painel de Aprovações' :
+            <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter uppercase italic">
+              {activeTab === 'ordens' ? 'Fila de Disparo' :
                 activeTab === 'laminas' ? 'Hawk Strategy' :
                   activeTab === 'swing-trade' ? 'Swing Trade Safra' :
-                    activeTab === 'renda-fixa' ? 'Investimentos Renda Fixa' :
+                    activeTab === 'renda-fixa' ? 'Investimentos RF' :
                       activeTab === 'relatorios' ? 'Central de Relatórios' :
                         activeTab === 'gestao-usuarios' ? 'Administração de Usuários' :
                           activeTab === 'analise-performance' ? 'Análise de Performance' :
-                            'Gemini AI Assistant'}
+                            'AI Assistant'}
             </h1>
             <p className="text-sm font-medium text-slate-500 italic">
               {activeTab === 'ordens' ? 'Disparo de ordens estruturadas via API/Outlook' :
                 activeTab === 'laminas' ? 'Gerador de Lâminas e Cardápios Safra Invest' :
-                  activeTab === 'swing-trade' ? 'Recomendações Equity Research (Safra Prospect)' :
+                  activeTab === 'swing-trade' ? 'Recomendações Equity Research' :
                     activeTab === 'renda-fixa' ? 'CDB, LCI, LCA e Títulos Públicos' :
-                      activeTab === 'relatorios' ? 'Análise de performance e extratos consolidados' :
-                        activeTab === 'gestao-usuarios' ? 'Gerenciamento de acessos, perfis e usuários' :
-                          activeTab === 'analise-performance' ? 'Análise detalhada de operações e rentabilidade' :
+                      activeTab === 'relatorios' ? 'Análise de performance e extratos' :
+                        activeTab === 'gestao-usuarios' ? 'Gerenciamento de acessos e perfis' :
+                          activeTab === 'analise-performance' ? 'Análise detalhada de rentabilidade' :
                             'Inteligência Artificial Integrada'}
             </p>
           </div>
 
           {activeTab === 'ordens' && (
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-slate-200 shadow-sm">
-                <span className="text-[10px] font-black text-slate-400 uppercase">Fila de Disparo:</span>
-                <span className="text-xs font-black text-emerald-600">{clients.length} Grupos</span>
+              <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm">
+                <span className="text-[10px] font-black text-slate-400 uppercase">Fila:</span>
+                <span className="text-xs font-black text-emerald-600">{clients.length} Ativos</span>
               </div>
-              <button
-                onClick={handleSendAll}
-                className="inline-flex items-center gap-2 rounded-xl bg-[#102218] px-8 py-3 text-sm font-black text-primary shadow-xl hover:brightness-125 active:scale-95 transition-all"
-              >
-                <span className="material-symbols-outlined text-[20px]">dynamic_feed</span>
-                DISPARAR LOTE (API)
-              </button>
             </div>
           )}
         </header>
 
-        <div className="px-10 pb-16 max-w-[1400px]">
-          {activeTab === 'renda-fixa' && (
-            <div className="bg-white rounded-3xl p-12 border border-slate-100 shadow-sm flex flex-col items-center justify-center text-center">
-              <span className="material-symbols-outlined text-6xl text-slate-200 mb-4">construction</span>
-              <h3 className="text-xl font-black text-slate-800 uppercase mb-2">Módulo em Desenvolvimento</h3>
-              <p className="text-slate-500 max-w-md font-medium">A central de Renda Fixa está sendo integrada ao Backoffice Suite para consolidar suas operações.</p>
-            </div>
-          )}
-
-          {activeTab === 'relatorios' && (
-            <div className="bg-white rounded-3xl p-12 border border-slate-100 shadow-sm flex flex-col items-center justify-center text-center">
-              <span className="material-symbols-outlined text-6xl text-slate-200 mb-4">analytics</span>
-              <h3 className="text-xl font-black text-slate-800 uppercase mb-2">Relatórios Personalizados</h3>
-              <p className="text-slate-500 max-w-md font-medium">Em breve você poderá gerar relatórios de performance e consolidação de carteira neste painel.</p>
-            </div>
-          )}
-
+        <div className="px-10 py-10 max-w-[1400px]">
           {activeTab === 'ordens' && (
             <div className="flex flex-col gap-6">
-              <div className="grid grid-cols-1 gap-6">
-                {clients.map(client => (
-                  <ClientGroup
-                    key={client.id}
-                    client={client}
-                    onUpdateClient={(updates) => updateClient(client.id, updates)}
-                    onRemoveClient={() => removeClient(client.id)}
-                    onAddOrder={() => addOrder(client.id)}
-                    onUpdateOrder={(orderId, updates) => updateOrder(client.id, orderId, updates)}
-                    onRemoveOrder={(orderId) => removeOrder(client.id, orderId)}
-                    onSendEmail={() => setPreviewClient(client)}
-                  />
-                ))}
+              <ApprovalsLayout
+                clients={clients}
+                selectedClientId={selectedClientId}
+                onSelectClient={setSelectedClientId}
+                onAddClient={addClient}
+                onAddClientFromMaster={addClientFromMaster}
+                onUpdateClient={updateClient}
+                onRemoveClient={removeClient}
+                onAddOrder={addOrder}
+                onUpdateOrder={updateOrder}
+                onRemoveOrder={removeOrder}
+                onSendEmail={(client) => setPreviewClient(client)}
+                onSendAll={handleSendAll}
+                onLogout={handleLogout}
+                userProfile={userProfile}
+                onSwitchTab={setActiveTab}
+              />
+            </div>
+          )}
 
-                <div className="flex flex-col md:flex-row gap-6">
-                  <button
-                    onClick={addClient}
-                    className="flex-1 flex items-center justify-center gap-4 rounded-3xl border-2 border-dashed border-slate-300 p-12 text-slate-400 hover:border-emerald-500 hover:text-emerald-600 hover:bg-white transition-all group shadow-sm"
-                  >
-                    <div className="h-12 w-12 rounded-2xl bg-slate-50 flex items-center justify-center group-hover:bg-emerald-50 transition-colors">
-                      <span className="material-symbols-outlined text-3xl group-hover:scale-110 transition-transform">add_box</span>
-                    </div>
-                    <div className="text-left">
-                      <span className="font-black uppercase tracking-widest text-xs block mb-1">Novo Cliente / Grupo</span>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">Clique para adicionar uma nova carteira vazia</span>
-                    </div>
-                  </button>
-
-                  <div className="flex-1 rounded-3xl border-2 border-slate-100 bg-white p-12 shadow-sm flex flex-col justify-center">
-                    <div className="mb-4">
-                      <span className="font-black uppercase tracking-widest text-xs block mb-1 text-slate-500">Importar do Cadastro Master</span>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">Busque por Nome, Sinacor ou Conta para adicionar</span>
-                    </div>
-                    <ClientSearch
-                      onSelect={addClientFromMaster}
-                      placeholder="Pesquisar no Cadastro de Clientes..."
-                    />
-                  </div>
-                </div>
-              </div>
+          {activeTab === 'renda-fixa' && (
+            <div className="bg-white dark:bg-card-dark rounded-[2.5rem] p-12 border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col items-center justify-center text-center transition-all bg-gradient-to-b from-white to-slate-50/30 dark:from-card-dark dark:to-background-dark/20">
+              <span className="material-symbols-outlined text-6xl text-slate-200 dark:text-slate-700 mb-6">construction</span>
+              <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase mb-2 tracking-tighter italic">Módulo em Desenvolvimento</h3>
+              <p className="text-slate-500 dark:text-slate-400 max-w-md font-medium">A central de Renda Fixa está sendo integrada ao Backoffice Suite para consolidar suas operações.</p>
             </div>
           )}
 
@@ -706,15 +663,15 @@ const App: React.FC = () => {
           {activeTab === 'analise-performance' && <PerformanceAnalysis />}
 
           {activeTab === 'gemini' && (
-            <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100">
+            <div className="bg-white dark:bg-card-dark rounded-[2.5rem] p-8 shadow-sm border border-slate-100 dark:border-slate-800 transition-all">
               <div className="max-w-2xl mx-auto space-y-6">
                 <div>
-                  <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Seu Prompt</label>
+                  <label className="block text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2">Seu Prompt</label>
                   <textarea
                     value={geminiPrompt}
                     onChange={(e) => setGeminiPrompt(e.target.value)}
                     placeholder="Pergunte algo para o Gemini..."
-                    className="w-full p-4 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent min-h-[120px] resize-none font-medium text-slate-700"
+                    className="w-full p-6 rounded-[1.5rem] bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary min-h-[120px] resize-none font-medium text-slate-700 dark:text-slate-200 transition-all placeholder:text-slate-400 italic"
                   ></textarea>
                 </div>
 
@@ -722,7 +679,7 @@ const App: React.FC = () => {
                   <button
                     onClick={handleGeminiSubmit}
                     disabled={isLoadingGemini || !geminiPrompt.trim()}
-                    className="px-8 py-3 rounded-xl bg-[#102218] text-primary font-black uppercase text-xs tracking-wider hover:brightness-125 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+                    className="px-10 py-4 rounded-[1.25rem] bg-[#102218] dark:bg-primary text-primary dark:text-white font-black uppercase text-xs tracking-widest hover:brightness-125 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-3 shadow-xl shadow-primary/10"
                   >
                     {isLoadingGemini ? (
                       <>
@@ -731,7 +688,7 @@ const App: React.FC = () => {
                       </>
                     ) : (
                       <>
-                        <span className="material-symbols-outlined text-lg">send</span>
+                        <span className="material-symbols-outlined text-lg translate-y-[-1px]">send</span>
                         Enviar Prompt
                       </>
                     )}
@@ -739,9 +696,9 @@ const App: React.FC = () => {
                 </div>
 
                 {geminiResponse && (
-                  <div className="pt-6 border-t border-slate-100 animate-in fade-in slide-in-from-bottom-2">
-                    <label className="block text-xs font-black text-emerald-600 uppercase tracking-widest mb-3">Resposta do Gemini</label>
-                    <div className="p-6 rounded-2xl bg-emerald-50/50 border border-emerald-100 text-slate-700 leading-relaxed dark:prose-invert">
+                  <div className="pt-8 border-t border-slate-100 dark:border-slate-800 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <label className="block text-xs font-black text-primary uppercase tracking-widest mb-4">Resposta do Gemini</label>
+                    <div className="p-8 rounded-[2rem] bg-primary/[0.03] dark:bg-primary/[0.05] border border-primary/10 text-slate-700 dark:text-slate-300 leading-relaxed font-medium shadow-inner italic">
                       {geminiResponse}
                     </div>
                   </div>
@@ -750,7 +707,24 @@ const App: React.FC = () => {
             </div>
           )}
         </div>
+
+        <footer className="p-10 pt-0">
+          <div className="max-w-[1400px] mx-auto bg-primary/5 dark:bg-primary/10 border border-primary/10 dark:border-primary/20 rounded-2xl p-5 flex items-center gap-4">
+            <span className="material-icons-outlined text-primary text-xl">info</span>
+            <p className="text-[10px] font-black text-emerald-800 dark:text-primary uppercase tracking-widest leading-relaxed">
+              DICA: O novo layout unificado agora suporta modo escuro em todos os módulos.
+            </p>
+          </div>
+        </footer>
       </main>
+
+      {/* Dark Mode Toggle */}
+      <button
+        className="fixed bottom-10 right-10 h-14 w-14 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl flex items-center justify-center hover:scale-110 hover:-rotate-12 transition-all active:scale-95 group z-[100]"
+        onClick={() => document.documentElement.classList.toggle('dark')}
+      >
+        <span className="material-icons-outlined text-slate-600 dark:text-slate-400 group-hover:text-primary text-2xl">dark_mode</span>
+      </button>
 
       {previewClient && (
         <EmailPreviewModal

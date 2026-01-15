@@ -89,25 +89,57 @@ const PerformanceAnalysis: React.FC = () => {
 
         if (file.name.endsWith('.csv')) {
             reader.onload = (event) => {
-                const text = event.target?.result as string;
+                const arrayBuffer = event.target?.result as ArrayBuffer;
+
+                // Tenta UTF-8 primeiro
+                const utf8Decoder = new TextDecoder('utf-8');
+                let text = utf8Decoder.decode(new Uint8Array(arrayBuffer));
+
+                // Se houver caracteres "estranhos" (como o diamante com interrogação), tenta latin1
+                if (text.includes('') || !text.includes(';')) {
+                    const latin1Decoder = new TextDecoder('iso-8859-1');
+                    text = latin1Decoder.decode(new Uint8Array(arrayBuffer));
+                }
+
+                console.log("CSV text preview:", text.substring(0, 200));
+
                 Papa.parse(text, {
                     header: true,
                     skipEmptyLines: true,
                     dynamicTyping: false,
+                    // Deixa o PapaParse detectar o delimitador, mas podemos forçar se necessário
                     complete: (results) => {
-                        processRawData(results.data);
+                        console.log("PapaParse results:", results.data.length, "rows", results.meta);
+                        if (results.data.length === 0) {
+                            alert("O arquivo parece estar vazio ou o formato não foi reconhecido.");
+                            setIsProcessing(false);
+                        } else {
+                            processRawData(results.data);
+                        }
+                    },
+                    error: (err) => {
+                        console.error("PapaParse error:", err);
+                        alert("Erro ao ler o arquivo CSV.");
+                        setIsProcessing(false);
                     }
                 });
             };
-            reader.readAsText(file);
+            reader.readAsArrayBuffer(file);
         } else {
             reader.onload = (event) => {
-                const data = new Uint8Array(event.target?.result as ArrayBuffer);
-                const workbook = XLSX.read(data, { type: 'array' });
-                const firstSheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[firstSheetName];
-                const jsonData = XLSX.utils.sheet_to_json(worksheet);
-                processRawData(jsonData);
+                try {
+                    const data = new Uint8Array(event.target?.result as ArrayBuffer);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+                    console.log("XLSX results:", jsonData.length, "rows");
+                    processRawData(jsonData);
+                } catch (err) {
+                    console.error("XLSX error:", err);
+                    alert("Erro ao ler o arquivo Excel.");
+                    setIsProcessing(false);
+                }
             };
             reader.readAsArrayBuffer(file);
         }
@@ -119,8 +151,9 @@ const PerformanceAnalysis: React.FC = () => {
 
         try {
             // 2. Normalização com mapeamento de colunas ultra-robusto
-            const normalizedData: TradeRecord[] = data.map((item) => {
+            const normalizedData: TradeRecord[] = data.map((item, idx) => {
                 const itemKeys = Object.keys(item);
+                if (idx === 0) console.log("Primeira linha de dados brutos:", item);
                 const getRaw = (aliases: string[]) => {
                     const normalizedAliases = aliases.map(a => normalizeStr(a));
 
@@ -360,16 +393,16 @@ const PerformanceAnalysis: React.FC = () => {
     ];
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500">
+        <div className="space-y-8 animate-in fade-in duration-500 -mt-10">
             {/* Upload Header */}
-            <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100 flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="bg-white dark:bg-card-dark rounded-[2.5rem] p-8 shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-800 flex flex-col md:flex-row items-center justify-between gap-6">
                 <div className="flex items-center gap-4">
                     <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
                         <span className="material-symbols-outlined text-4xl">upload_file</span>
                     </div>
                     <div>
-                        <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Importar Operações</h2>
-                        <p className="text-sm text-slate-500 font-medium">Selecione uma planilha (XLSX ou CSV) para iniciar a análise.</p>
+                        <h2 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Importar Operações</h2>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">Selecione uma planilha (XLSX ou CSV) para iniciar a análise.</p>
                     </div>
                 </div>
 
@@ -384,7 +417,7 @@ const PerformanceAnalysis: React.FC = () => {
                     <button
                         onClick={() => fileInputRef.current?.click()}
                         disabled={isProcessing}
-                        className="px-8 py-3 rounded-xl bg-secondary text-primary font-black uppercase text-xs tracking-wider hover:brightness-125 transition-all flex items-center gap-2"
+                        className="px-8 py-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-black uppercase text-xs tracking-wider hover:bg-slate-200 dark:hover:bg-slate-700 transition-all flex items-center gap-2"
                     >
                         {isProcessing ? (
                             <span className="material-symbols-outlined animate-spin">progress_activity</span>
@@ -397,7 +430,7 @@ const PerformanceAnalysis: React.FC = () => {
                     {operations.length > 0 && (
                         <button
                             onClick={handleExportPDF}
-                            className="px-8 py-3 rounded-xl bg-primary text-secondary font-black uppercase text-xs tracking-wider hover:brightness-110 transition-all flex items-center gap-2 shadow-lg shadow-primary/20"
+                            className="px-8 py-3 rounded-xl bg-primary text-white font-black uppercase text-xs tracking-wider hover:brightness-110 transition-all flex items-center gap-2 shadow-lg shadow-primary/20"
                         >
                             <span className="material-symbols-outlined">picture_as_pdf</span>
                             Exportar PDF
@@ -410,59 +443,33 @@ const PerformanceAnalysis: React.FC = () => {
                 <div ref={reportRef} className="space-y-8 pb-10">
                     {/* KPI Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Resultado Total</p>
-                            <h3 className={`text-2xl font-black ${summary.totalResultBrRL >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                                {formatCurrency(summary.totalResultBrRL)}
-                            </h3>
-                            <div className="mt-2 flex items-center gap-1 text-[10px] font-bold text-slate-500">
-                                <span className="material-symbols-outlined text-xs">payments</span>
-                                Volume: {formatCurrency(summary.totalVolume)}
+                        {[
+                            { label: 'Resultado Total', value: formatCurrency(summary.totalResultBrRL), subLabel: `Volume: ${formatCurrency(summary.totalVolume)}`, icon: 'payments', pos: summary.totalResultBrRL >= 0 },
+                            { label: 'Rentabilidade (Ponderada)', value: formatPercent(summary.weightedAverageReturnPercent), subLabel: `Média Simples: ${formatPercent(summary.averageReturnPercent)}`, icon: 'query_stats', pos: summary.weightedAverageReturnPercent >= 0 },
+                            { label: 'Taxa de Acerto', value: formatPercent(summary.winRate), subLabel: `${operations.filter(op => op.resultBrRL > 0).length} de ${summary.totalOperations} Trades`, icon: 'done_all' },
+                            { label: 'Max Drawdown', value: formatPercent(summary.drawdown || 0), subLabel: 'Risco da Estratégia', icon: 'trending_down', neg: true }
+                        ].map((kpi, i) => (
+                            <div key={i} className="bg-white dark:bg-card-dark rounded-[2rem] p-6 border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none">
+                                <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">{kpi.label}</p>
+                                <h3 className={`text-2xl font-black ${kpi.pos ? 'text-emerald-600' : kpi.neg ? 'text-red-500' : 'text-slate-800 dark:text-white'}`}>
+                                    {kpi.value}
+                                </h3>
+                                <div className="mt-2 flex items-center gap-1 text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                                    <span className="material-symbols-outlined text-xs">{kpi.icon}</span>
+                                    {kpi.subLabel}
+                                </div>
                             </div>
-                        </div>
-
-                        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Rentabilidade (Ponderada)</p>
-                            <h3 className={`text-2xl font-black ${summary.weightedAverageReturnPercent >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                                {formatPercent(summary.weightedAverageReturnPercent)}
-                            </h3>
-                            <div className="mt-2 flex items-center gap-1 text-[10px] font-bold text-slate-500">
-                                <span className="material-symbols-outlined text-xs">query_stats</span>
-                                Média Simples: {formatPercent(summary.averageReturnPercent)}
-                            </div>
-                        </div>
-
-                        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Taxa de Acerto</p>
-                            <h3 className="text-2xl font-black text-slate-800">
-                                {formatPercent(summary.winRate)}
-                            </h3>
-                            <div className="mt-2 flex items-center gap-1 text-[10px] font-bold text-slate-500">
-                                <span className="material-symbols-outlined text-xs">done_all</span>
-                                {operations.filter(op => op.resultBrRL > 0).length} de {summary.totalOperations} Trades
-                            </div>
-                        </div>
-
-                        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Max Drawdown</p>
-                            <h3 className="text-2xl font-black text-red-500">
-                                {formatPercent(summary.drawdown || 0)}
-                            </h3>
-                            <div className="mt-2 flex items-center gap-1 text-[10px] font-bold text-slate-500">
-                                <span className="material-symbols-outlined text-xs">trending_down</span>
-                                Risco da Estratégia
-                            </div>
-                        </div>
+                        ))}
                     </div>
 
                     {/* Charts Row */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm">
-                            <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-8">Evolução do Patrimônio (R$)</h4>
+                        <div className="bg-white dark:bg-card-dark rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none">
+                            <h4 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-8">Evolução do Patrimônio (R$)</h4>
                             <div className="h-[300px] w-full">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <LineChart data={equityCurveData}>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" className="dark:stroke-slate-800" />
                                         <XAxis
                                             dataKey="name"
                                             axisLine={false}
@@ -477,24 +484,25 @@ const PerformanceAnalysis: React.FC = () => {
                                             tickFormatter={(val) => `R$ ${val >= 1000 ? (val / 1000).toFixed(0) + 'k' : val}`}
                                         />
                                         <Tooltip
-                                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                                            contentStyle={{ backgroundColor: 'white', borderRadius: '16px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' }}
+                                            labelStyle={{ fontWeight: 900, fontSize: '12px', marginBottom: '8px' }}
                                             formatter={(value: number) => [formatCurrency(value), 'Resultado Acumulado']}
                                         />
                                         <Line
                                             type="monotone"
                                             dataKey="balance"
                                             stroke="#10b981"
-                                            strokeWidth={3}
+                                            strokeWidth={4}
                                             dot={false}
-                                            activeDot={{ r: 6, stroke: '#fff', strokeWidth: 2 }}
+                                            activeDot={{ r: 6, stroke: '#fff', strokeWidth: 3 }}
                                         />
                                     </LineChart>
                                 </ResponsiveContainer>
                             </div>
                         </div>
 
-                        <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm flex flex-col">
-                            <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-8">Distribuição de Resultados</h4>
+                        <div className="bg-white dark:bg-card-dark rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none flex flex-col">
+                            <h4 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-8">Distribuição de Resultados</h4>
                             <div className="flex-1 flex items-center justify-center">
                                 <div className="h-[300px] w-full">
                                     <ResponsiveContainer width="100%" height="100%">
@@ -505,17 +513,17 @@ const PerformanceAnalysis: React.FC = () => {
                                                 cy="50%"
                                                 innerRadius={60}
                                                 outerRadius={100}
-                                                paddingAngle={5}
+                                                paddingAngle={8}
                                                 dataKey="value"
                                             >
                                                 {distData.map((entry, index) => (
-                                                    <Cell key={`cell-${index}`} fill={entry.color} />
+                                                    <Cell key={`cell-${index}`} fill={entry.color} stroke="transparent" />
                                                 ))}
                                             </Pie>
                                             <Tooltip
-                                                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                                                contentStyle={{ backgroundColor: 'white', borderRadius: '16px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' }}
                                             />
-                                            <Legend verticalAlign="bottom" height={36} />
+                                            <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontWeight: 900, textTransform: 'uppercase', fontSize: '10px', letterSpacing: '0.1em' }} />
                                         </PieChart>
                                     </ResponsiveContainer>
                                 </div>
@@ -524,55 +532,55 @@ const PerformanceAnalysis: React.FC = () => {
                     </div>
 
                     {/* Detailed Table */}
-                    <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-                        <div className="px-8 py-6 border-b border-slate-50 flex items-center justify-between">
-                            <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Detalhamento por Operação</h4>
-                            <span className="px-3 py-1 bg-slate-100 rounded-full text-[10px] font-black text-slate-500 uppercase">
+                    <div className="bg-white dark:bg-card-dark rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none overflow-hidden">
+                        <div className="px-8 py-6 border-b border-slate-50 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/30">
+                            <h4 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">Detalhamento por Operação</h4>
+                            <span className="px-3 py-1 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-full text-[10px] font-black text-slate-500 uppercase">
                                 {operations.length} Items
                             </span>
                         </div>
                         <div className="overflow-x-auto">
                             <table className="w-full text-left border-collapse">
                                 <thead>
-                                    <tr className="bg-slate-50/50">
-                                        <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Ativo</th>
-                                        <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Entrada / Saída</th>
-                                        <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Preços</th>
-                                        <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Quantidade</th>
-                                        <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Resultado (R$)</th>
-                                        <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Resultado (%)</th>
+                                    <tr className="border-b border-slate-50 dark:border-slate-800">
+                                        <th className="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Ativo</th>
+                                        <th className="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Entrada / Saída</th>
+                                        <th className="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Preços</th>
+                                        <th className="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Quantidade</th>
+                                        <th className="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-right">Resultado (R$)</th>
+                                        <th className="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-right">Resultado (%)</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-50">
+                                <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
                                     {operations.map((op) => (
-                                        <tr key={op.id} className="hover:bg-slate-50/30 transition-colors group">
+                                        <tr key={op.id} className="hover:bg-slate-50/30 dark:hover:bg-slate-800/20 transition-colors group">
                                             <td className="px-8 py-5">
                                                 <div className="flex flex-col">
-                                                    <span className="text-sm font-black text-slate-800">{op.ticker}</span>
-                                                    <span className="text-[10px] font-bold text-slate-400 uppercase">{op.cliente} ({op.conta})</span>
+                                                    <span className="text-sm font-black text-slate-800 dark:text-white uppercase leading-tight">{op.ticker}</span>
+                                                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">{op.cliente} ({op.conta})</span>
                                                 </div>
                                             </td>
                                             <td className="px-8 py-5">
                                                 <div className="flex flex-col">
-                                                    <span className="text-[11px] font-bold text-slate-600">IN: {op.entryDate}</span>
-                                                    <span className="text-[11px] font-bold text-slate-600">OUT: {op.exitDate}</span>
+                                                    <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase">IN: {op.entryDate}</span>
+                                                    <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase">OUT: {op.exitDate}</span>
                                                 </div>
                                             </td>
                                             <td className="px-8 py-5">
                                                 <div className="flex flex-col">
-                                                    <span className="text-[11px] font-bold text-slate-600">Compra: {formatCurrency(op.entryPrice)}</span>
-                                                    <span className="text-[11px] font-bold text-slate-600">Venda: {formatCurrency(op.exitPrice)}</span>
+                                                    <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase">Compra: {formatCurrency(op.entryPrice)}</span>
+                                                    <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase">Venda: {formatCurrency(op.exitPrice)}</span>
                                                 </div>
                                             </td>
                                             <td className="px-8 py-5 text-center">
-                                                <span className="text-[11px] font-black text-slate-700">{op.quantity}</span>
-                                                <p className="text-[9px] font-bold text-slate-400 uppercase">{op.side}</p>
+                                                <span className="text-[11px] font-black text-slate-700 dark:text-slate-200">{op.quantity}</span>
+                                                <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">{op.side}</p>
                                             </td>
                                             <td className={`px-8 py-5 text-right font-black text-sm ${op.resultBrRL >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
                                                 {formatCurrency(op.resultBrRL)}
                                             </td>
                                             <td className="px-8 py-5 text-right">
-                                                <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black ${op.resultPercent >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'}`}>
+                                                <span className={`inline-flex items-center px-4 py-1.5 rounded-full text-[10px] font-black ${op.resultPercent >= 0 ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600' : 'bg-red-50 dark:bg-red-500/10 text-red-500'}`}>
                                                     {op.resultPercent >= 0 ? '+' : ''}{formatPercent(op.resultPercent)}
                                                 </span>
                                             </td>
@@ -586,12 +594,12 @@ const PerformanceAnalysis: React.FC = () => {
             )}
 
             {!operations.length && !isProcessing && (
-                <div className="bg-white rounded-3xl p-16 border border-slate-100 shadow-sm flex flex-col items-center justify-center text-center">
-                    <div className="h-24 w-24 rounded-full bg-slate-50 flex items-center justify-center mb-6">
-                        <span className="material-symbols-outlined text-5xl text-slate-300">analytics</span>
+                <div className="bg-white dark:bg-card-dark rounded-[2.5rem] p-16 border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none flex flex-col items-center justify-center text-center">
+                    <div className="h-24 w-24 rounded-full bg-slate-50 dark:bg-slate-800 flex items-center justify-center mb-6">
+                        <span className="material-symbols-outlined text-5xl text-slate-200 dark:text-slate-700">analytics</span>
                     </div>
-                    <h3 className="text-xl font-black text-slate-800 uppercase mb-2">Sua análise aparecerá aqui</h3>
-                    <p className="text-slate-400 max-w-md font-medium">Faça o upload de uma planilha de operações para visualizar métricas de performance, rentabilidade e estatísticas detalhadas.</p>
+                    <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase mb-2 tracking-tight italic">Sua análise aparecerá aqui</h3>
+                    <p className="text-slate-400 dark:text-slate-500 max-w-md font-medium text-sm">Faça o upload de uma planilha de operações para visualizar métricas de performance, rentabilidade e estatísticas detalhadas.</p>
                 </div>
             )}
         </div>

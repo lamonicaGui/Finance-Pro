@@ -109,51 +109,51 @@ const SwingTradeGenerator: React.FC<SwingTradeGeneratorProps> = ({ userEmail }) 
 
         return (
             <div className="mb-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <div className="bg-[#102218] rounded-t-[2rem] px-8 py-5 flex items-center justify-between shadow-lg">
+                <div className="bg-slate-900 dark:bg-primary/10 rounded-t-[2.5rem] px-8 py-6 flex items-center justify-between shadow-lg">
                     <div className="flex items-center gap-4">
                         <div className="h-2 w-2 rounded-full bg-primary animate-pulse shadow-[0_0_8px_rgba(206,255,0,0.8)]"></div>
-                        <h3 className="text-[13px] font-black text-white uppercase tracking-[0.2em]">{title}</h3>
+                        <h3 className="text-[13px] font-black text-white dark:text-primary uppercase tracking-[0.2em] italic">{title}</h3>
                     </div>
                 </div>
 
-                <div className="bg-white rounded-b-[2rem] shadow-sm border-x border-b border-slate-100 overflow-hidden px-4 pb-6">
+                <div className="bg-white dark:bg-card-dark rounded-b-[2.5rem] shadow-xl shadow-slate-200/50 dark:shadow-none border-x border-b border-slate-100 dark:border-slate-800 overflow-hidden px-4 pb-6">
                     <table className="w-full text-left">
                         <thead>
-                            <tr className="text-[9px] font-black text-slate-400 uppercase tracking-[0.25em] border-b border-slate-50">
+                            <tr className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.25em] border-b border-slate-50 dark:border-slate-800">
                                 <th className="px-6 py-6 w-10 text-center">Sel.</th>
-                                <th className="px-6 py-6">Ativo</th>
-                                <th className="px-6 py-6 text-center">Operação</th>
-                                <th className="px-6 py-6 text-center">Cotação</th>
-                                <th className="px-6 py-6 text-center text-emerald-600">Ganho Real</th>
-                                <th className="px-6 py-6 text-center text-red-500">Risco Real</th>
-                                <th className="px-6 py-6 text-right">Ação</th>
+                                <th className="px-6 py-6 font-black">Ativo</th>
+                                <th className="px-6 py-6 text-center font-black">Operação</th>
+                                <th className="px-6 py-6 text-center font-black">Cotação</th>
+                                <th className="px-6 py-6 text-center text-emerald-600 font-black">Ganho Real</th>
+                                <th className="px-6 py-6 text-center text-red-500 font-black">Risco Real</th>
+                                <th className="px-6 py-6 text-right font-black">Ação</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-50/50">
+                        <tbody className="divide-y divide-slate-50/50 dark:divide-slate-800/50">
                             {filtered.length === 0 ? (
-                                <tr><td colSpan={7} className="px-6 py-16 text-center text-slate-300 italic text-sm">Vazio</td></tr>
+                                <tr><td colSpan={7} className="px-6 py-16 text-center text-slate-300 dark:text-slate-700 italic text-sm font-black uppercase tracking-widest">Nenhuma recomendação</td></tr>
                             ) : (
                                 filtered.map((asset) => {
                                     const dyn = calculateDynamicPotential(asset);
                                     return (
-                                        <tr key={asset.id} className={`${asset.selected ? 'bg-emerald-50/30' : ''} hover:bg-slate-50/80 transition-all duration-300 group`}>
+                                        <tr key={asset.id} className={`${asset.selected ? 'bg-primary/5' : ''} hover:bg-slate-50 dark:hover:bg-slate-800/20 transition-all duration-300 group`}>
                                             <td className="px-6 py-5 text-center">
-                                                <input type="checkbox" checked={asset.selected} onChange={() => toggleSelect(asset.id)} className="w-5 h-5 rounded-lg border-slate-200 text-primary cursor-pointer" />
+                                                <input type="checkbox" checked={asset.selected} onChange={() => toggleSelect(asset.id)} className="w-5 h-5 rounded-lg border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-primary cursor-pointer focus:ring-primary/20" />
                                             </td>
                                             <td className="px-6 py-5">
-                                                <div className="text-sm font-black text-[#102218]">{asset.ticker}</div>
+                                                <div className="text-sm font-black text-slate-800 dark:text-white uppercase">{asset.ticker}</div>
                                             </td>
                                             <td className="px-6 py-5 text-center">
-                                                <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase ${asset.type === 'Compra' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>{asset.type}</span>
+                                                <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase ${asset.type === 'Compra' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600' : 'bg-red-50 dark:bg-red-500/10 text-red-600'}`}>{asset.type}</span>
                                             </td>
-                                            <td className="px-6 py-5 text-center font-black text-slate-900">
+                                            <td className="px-6 py-5 text-center font-black text-slate-900 dark:text-slate-200">
                                                 R$ {(asset.currentPrice || asset.entryPrice).toFixed(2)}
                                                 {asset.currentPrice && <div className="text-[8px] text-emerald-500 font-bold uppercase tracking-tighter animate-pulse">LIVE</div>}
                                             </td>
                                             <td className="px-6 py-5 text-center font-black text-emerald-500">{dyn.upside}</td>
                                             <td className="px-6 py-5 text-center font-black text-red-400">{dyn.downside}</td>
                                             <td className="px-6 py-5 text-right">
-                                                <button onClick={() => setOrderAssets([asset])} className="text-slate-300 hover:text-primary transition-colors">
+                                                <button onClick={() => setOrderAssets([asset])} className="h-10 w-10 flex items-center justify-center text-slate-300 hover:text-primary dark:hover:text-primary transition-all rounded-xl hover:bg-primary/5">
                                                     <span className="material-symbols-outlined">send</span>
                                                 </button>
                                             </td>
@@ -169,11 +169,11 @@ const SwingTradeGenerator: React.FC<SwingTradeGeneratorProps> = ({ userEmail }) 
     };
 
     return (
-        <div className="max-w-[1400px] mx-auto py-4 space-y-12">
+        <div className="max-w-[1400px] mx-auto space-y-12 animate-in fade-in duration-700 -mt-10">
             <div className="flex flex-col md:flex-row justify-between items-center gap-6 mb-8">
                 <div>
-                    <h1 className="text-5xl font-black text-[#102218] tracking-tighter">Swing Trade</h1>
-                    <div className="text-[10px] font-black text-slate-300 uppercase mt-2 italic">Dashboard de Oportunidades</div>
+                    <h1 className="text-5xl font-black text-slate-900 dark:text-white tracking-tighter italic">Swing Trade</h1>
+                    <div className="text-[10px] font-black text-primary uppercase mt-2 tracking-[0.2em] italic">Dashboard de Oportunidades</div>
                 </div>
                 <div className="flex gap-4">
                     {assets.some(a => a.selected) && (
@@ -182,19 +182,19 @@ const SwingTradeGenerator: React.FC<SwingTradeGeneratorProps> = ({ userEmail }) 
                                 const selected = assets.filter(a => a.selected);
                                 setOrderAssets(selected);
                             }}
-                            className="bg-[#102218] px-8 py-4 rounded-[2rem] text-[11px] font-black text-primary shadow-2xl hover:scale-105 transition-all uppercase tracking-[0.2em] flex items-center gap-3 animate-in zoom-in duration-300"
+                            className="bg-slate-900 dark:bg-primary px-8 py-4 rounded-[1.25rem] text-[11px] font-black text-primary dark:text-white shadow-2xl hover:scale-105 transition-all uppercase tracking-[0.2em] flex items-center gap-3 animate-in zoom-in duration-300"
                         >
                             <span className="material-symbols-outlined text-lg">bolt</span>
                             Envio de Ordem
                         </button>
                     )}
                     {assets.length > 0 && (
-                        <button onClick={fetchPrices} disabled={isSyncing} className="bg-primary px-8 py-4 rounded-[2rem] text-[11px] font-black text-[#102218] shadow-2xl hover:scale-105 transition-all uppercase flex items-center gap-3 disabled:opacity-50">
+                        <button onClick={fetchPrices} disabled={isSyncing} className="bg-white dark:bg-card-dark border-2 border-primary/20 dark:border-primary/40 px-8 py-4 rounded-[1.25rem] text-[11px] font-black text-primary shadow-xl hover:scale-105 transition-all uppercase flex items-center gap-3 disabled:opacity-50">
                             <span className={`material-symbols-outlined text-lg ${isSyncing ? 'animate-spin' : ''}`}>sync</span>
                             {isSyncing ? 'Sincronizando...' : 'Atualizar Cotações'}
                         </button>
                     )}
-                    <button onClick={() => { setAssets([]); setRawText(null); }} className="bg-white border-2 border-slate-200 px-8 py-4 rounded-[2rem] text-[11px] font-black text-slate-400 hover:text-red-500 transition-all uppercase flex items-center gap-3">
+                    <button onClick={() => { setAssets([]); setRawText(null); }} className="bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 px-8 py-4 rounded-[1.25rem] text-[11px] font-black text-slate-400 hover:text-red-500 transition-all uppercase flex items-center gap-3">
                         <span className="material-symbols-outlined text-lg">delete_sweep</span>
                         Limpar
                     </button>
@@ -202,13 +202,18 @@ const SwingTradeGenerator: React.FC<SwingTradeGeneratorProps> = ({ userEmail }) 
             </div>
 
             {assets.length === 0 ? (
-                <div onDragOver={(e) => { e.preventDefault(); setIsDragActive(true); }} onDragLeave={() => setIsDragActive(false)} onDrop={(e) => { e.preventDefault(); setIsDragActive(false); if (e.dataTransfer.files[0]) handleFileUpload(e.dataTransfer.files[0]); }} className={`relative group rounded-[3rem] border-2 border-dashed transition-all duration-700 p-16 text-center ${isDragActive ? 'border-primary bg-primary/5 shadow-2xl scale-[0.98]' : 'border-slate-200 bg-white shadow-xl'}`}>
+                <div
+                    onDragOver={(e) => { e.preventDefault(); setIsDragActive(true); }}
+                    onDragLeave={() => setIsDragActive(false)}
+                    onDrop={(e) => { e.preventDefault(); setIsDragActive(false); if (e.dataTransfer.files[0]) handleFileUpload(e.dataTransfer.files[0]); }}
+                    className={`relative group rounded-[3rem] border-2 border-dashed transition-all duration-700 p-24 text-center ${isDragActive ? 'border-primary bg-primary/5 shadow-2xl scale-[0.98]' : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-card-dark shadow-xl dark:shadow-none'}`}
+                >
                     <input type="file" onChange={onFileChange} accept=".pdf" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
-                    <div className="mb-8 h-24 w-24 mx-auto bg-slate-50 rounded-full flex items-center justify-center text-slate-300 group-hover:text-primary transition-all group-hover:rotate-12 shadow-inner">
-                        <span className="material-symbols-outlined text-5xl">{isParsing ? 'sync' : 'upload_file'}</span>
+                    <div className="mb-8 h-32 w-32 mx-auto bg-slate-50 dark:bg-slate-900 rounded-full flex items-center justify-center text-slate-200 dark:text-slate-800 group-hover:text-primary transition-all group-hover:rotate-12 shadow-inner">
+                        <span className="material-symbols-outlined text-6xl">{isParsing ? 'sync' : 'upload_file'}</span>
                     </div>
-                    <h2 className="text-2xl font-black text-[#102218] uppercase mb-3">Importar Safra Prospect</h2>
-                    <p className="text-sm font-medium text-slate-500 italic">Dica: Arraste o PDF para cá</p>
+                    <h2 className="text-3xl font-black text-slate-800 dark:text-white uppercase mb-3 tracking-tighter italic">Importar Safra Prospect</h2>
+                    <p className="text-slate-400 dark:text-slate-500 font-medium max-w-sm mx-auto">Arraste o PDF de recomendações para cá ou clique para selecionar o arquivo no seu computador.</p>
                 </div>
             ) : (
                 <div className="space-y-4 pb-20">
@@ -218,8 +223,8 @@ const SwingTradeGenerator: React.FC<SwingTradeGeneratorProps> = ({ userEmail }) 
             )}
 
             {!isParsing && assets.length === 0 && rawText && (
-                <div className="mt-10 max-w-2xl mx-auto p-8 bg-white rounded-[2.5rem] border border-slate-100 shadow-2xl">
-                    <button onClick={() => setShowDebug(!showDebug)} className="w-full py-4 bg-slate-50 border border-slate-200 rounded-2xl text-[10px] font-black uppercase text-slate-500 hover:bg-slate-100 transition-all mb-4">
+                <div className="mt-10 max-w-2xl mx-auto p-8 bg-white dark:bg-card-dark rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-2xl dark:shadow-none">
+                    <button onClick={() => setShowDebug(!showDebug)} className="w-full py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-[10px] font-black uppercase text-slate-500 hover:bg-slate-100 transition-all mb-4">
                         {showDebug ? 'Ocultar Debug' : 'Ver Conteúdo Bruto'}
                     </button>
                     {showDebug && <textarea className="w-full h-64 bg-slate-900 border-none rounded-2xl p-6 text-[11px] font-mono text-emerald-400/80 focus:outline-none shadow-inner" readOnly value={rawText} />}
