@@ -493,7 +493,10 @@ const PerformanceAnalysis: React.FC = () => {
                             </div>
                             <div>
                                 <h2 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Análise Consolidada</h2>
-                                <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">Filtre dados do banco ou importe uma nova planilha.</p>
+                                <div className="flex items-center gap-2">
+                                    <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">Filtre dados do banco ou importe uma nova planilha.</p>
+                                    <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-[9px] font-black text-slate-400 uppercase tracking-widest">Source: executed_orders</span>
+                                </div>
                             </div>
                         </div>
 
