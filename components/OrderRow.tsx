@@ -152,23 +152,22 @@ const OrderRow: React.FC<OrderRowProps> = ({ order, onUpdate, onRemove }) => {
           </div>
         </td>
         <td className="px-6 py-5">
-          <select
-            className="block w-full bg-slate-50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-800 rounded-xl px-3 py-2 text-[10px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest focus:ring-2 focus:ring-primary/20 transition-all"
-            value={order.basis}
-            onChange={(e) => onUpdate({ basis: e.target.value as OrderBasis })}
-          >
-            <option value="Quantidade">Quantidade</option>
-            <option value="Financeiro">Financeiro</option>
-          </select>
-        </td>
-        <td className="px-6 py-5">
-          <div className="flex flex-col gap-1.5">
-            <div className={`flex items-center justify-end bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 shadow-sm focus-within:ring-4 focus-within:ring-primary/10 transition-all ${order.basis === 'Financeiro' ? 'bg-slate-50/50' : ''}`}>
-              <span className="text-[10px] font-black text-slate-400 mr-2">{order.basis === 'Financeiro' ? 'R$' : 'QTD'}</span>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2 mb-1">
+              <button
+                onClick={() => onUpdate({ basis: 'Quantidade' })}
+                className={`h-4 w-4 rounded-full border-2 flex items-center justify-center transition-all ${order.basis === 'Quantidade' ? 'border-primary bg-primary shadow-sm' : 'border-slate-300 dark:border-slate-700'}`}
+              >
+                {order.basis === 'Quantidade' && <div className="h-1.5 w-1.5 rounded-full bg-white" />}
+              </button>
+              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Quantidade</span>
+            </div>
+            <div className={`flex items-center justify-end bg-slate-50 dark:bg-slate-900/50 rounded-xl px-3 py-1.5 border border-slate-100 dark:border-slate-800 shadow-inner group-hover:bg-white dark:group-hover:bg-slate-800 transition-all ${order.basis !== 'Quantidade' ? 'opacity-50' : ''}`}>
               <input
                 type="number"
+                disabled={order.basis !== 'Quantidade'}
                 className="block w-24 bg-transparent border-none p-0 text-right font-mono text-sm font-black text-slate-800 dark:text-white focus:ring-0"
-                value={order.value || ''}
+                value={order.basis === 'Quantidade' ? (order.value || '') : estimatedQty}
                 placeholder="0"
                 onChange={(e) => onUpdate({ value: parseFloat(e.target.value) || 0 })}
               />
@@ -176,24 +175,28 @@ const OrderRow: React.FC<OrderRowProps> = ({ order, onUpdate, onRemove }) => {
           </div>
         </td>
         <td className="px-6 py-5">
-          <div className="flex flex-col items-end">
-            {order.basis === 'Quantidade' ? (
-              <>
-                <div className="flex items-center gap-1 font-mono text-sm font-black text-emerald-600 dark:text-primary">
-                  <span className="text-[10px] opacity-70">R$</span>
-                  <span>{estimatedFinance.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                </div>
-                <span className="text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest">Total Estimado</span>
-              </>
-            ) : (
-              <>
-                <div className="flex items-center gap-1 font-mono text-sm font-black text-emerald-600 dark:text-primary">
-                  <span>{estimatedQty.toLocaleString('pt-BR')}</span>
-                  <span className="text-[10px] opacity-70 uppercase tracking-tighter ml-1">Papéis</span>
-                </div>
-                <span className="text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest">Qtd Estimada</span>
-              </>
-            )}
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2 mb-1">
+              <button
+                onClick={() => onUpdate({ basis: 'Financeiro' })}
+                className={`h-4 w-4 rounded-full border-2 flex items-center justify-center transition-all ${order.basis === 'Financeiro' ? 'border-primary bg-primary shadow-sm' : 'border-slate-300 dark:border-slate-700'}`}
+              >
+                {order.basis === 'Financeiro' && <div className="h-1.5 w-1.5 rounded-full bg-white" />}
+              </button>
+              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Financeiro (R$)</span>
+            </div>
+            <div className={`flex items-center justify-end bg-slate-50 dark:bg-slate-900/50 rounded-xl px-3 py-1.5 border border-slate-100 dark:border-slate-800 shadow-inner group-hover:bg-white dark:group-hover:bg-slate-800 transition-all ${order.basis !== 'Financeiro' ? 'opacity-50' : ''}`}>
+              <span className="text-[10px] font-bold text-slate-400 mr-1">R$</span>
+              <input
+                type="number"
+                step="0.01"
+                disabled={order.basis !== 'Financeiro'}
+                className="block w-24 bg-transparent border-none p-0 text-right font-mono text-sm font-black text-slate-800 dark:text-white focus:ring-0"
+                value={order.basis === 'Financeiro' ? (order.value || '') : estimatedFinance}
+                placeholder="0.00"
+                onChange={(e) => onUpdate({ value: parseFloat(e.target.value) || 0 })}
+              />
+            </div>
           </div>
         </td>
         <td className="px-6 py-5 text-center">

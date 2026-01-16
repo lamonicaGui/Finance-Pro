@@ -11,25 +11,29 @@ interface EmailPreviewModalProps {
   isSending?: boolean;
 }
 
-const EmailPreviewModal: React.FC<EmailPreviewModalProps> = ({ 
-  client, 
-  onClose, 
-  onCopyAndOpen, 
-  onSendAPI, 
-  isBulk, 
-  isSending 
+const EmailPreviewModal: React.FC<EmailPreviewModalProps> = ({
+  client,
+  onClose,
+  onCopyAndOpen,
+  onSendAPI,
+  isBulk,
+  isSending
 }) => {
   const codId = React.useMemo(() => Math.floor(100000 + Math.random() * 900000), []);
   const subject = `Aprovação de Ordem | CC: ${client.account || '000000'} / COD: ${codId}`;
 
   const renderTableRows = () => {
-    return client.orders.map((order) => (
-      `<tr>
+    return client.orders.map((order) => {
+      const quantity = order.basis === 'Quantidade'
+        ? order.value
+        : (order.orderPrice > 0 ? Math.floor(order.value / order.orderPrice) : 0);
+
+      return `<tr>
         <td style="border: 1px solid #000000; padding: 6px; font-family: Arial; font-size: 12px; text-align: left;">
           ${order.side === 'Venda' ? 'V' : 'C'}
         </td>
         <td style="border: 1px solid #000000; padding: 6px; font-family: Arial; font-size: 12px; font-weight: bold; text-align: left;">
-          ${order.value}
+          ${quantity.toLocaleString('pt-BR')}
         </td>
         <td style="border: 1px solid #000000; padding: 6px; font-family: Arial; font-size: 12px; font-weight: bold; text-align: left;">
           ${order.ticker}
@@ -37,8 +41,8 @@ const EmailPreviewModal: React.FC<EmailPreviewModalProps> = ({
         <td style="border: 1px solid #000000; padding: 6px; font-family: Arial; font-size: 12px; text-align: left;">
           ${order.mode === 'Mercado' ? 'MERCADO' : order.orderPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
         </td>
-      </tr>`
-    )).join('');
+      </tr>`;
+    }).join('');
   };
 
   const fullHtml = `
@@ -86,8 +90,8 @@ const EmailPreviewModal: React.FC<EmailPreviewModalProps> = ({
             <div className="flex text-xs"><span className="w-20 font-bold text-slate-400">Cc:</span> <span className="text-slate-600">{client.cc}</span></div>
           </div>
 
-          <div 
-            id="outlook-html-content" 
+          <div
+            id="outlook-html-content"
             className="outlook-preview-body"
             dangerouslySetInnerHTML={{ __html: fullHtml }}
           />
@@ -107,7 +111,7 @@ const EmailPreviewModal: React.FC<EmailPreviewModalProps> = ({
               )}
               ENVIAR DIRETO (API)
             </button>
-            
+
             <button
               onClick={onCopyAndOpen}
               className="flex items-center justify-center gap-3 rounded-lg bg-slate-800 px-6 py-4 text-sm font-black text-white shadow-lg hover:bg-black active:scale-95 transition-all"
@@ -122,11 +126,11 @@ const EmailPreviewModal: React.FC<EmailPreviewModalProps> = ({
             Segurança Financeira: HTML nativo do Microsoft Outlook
           </div>
         </div>
-        
+
         {isBulk && (
-           <div className="px-6 py-2 bg-blue-600 text-white text-[10px] font-black text-center animate-pulse">
+          <div className="px-6 py-2 bg-blue-600 text-white text-[10px] font-black text-center animate-pulse">
             MODO LOTE ATIVO: ENVIANDO SEQUÊNCIA DE CLIENTES VIA API
-           </div>
+          </div>
         )}
       </div>
     </div>
