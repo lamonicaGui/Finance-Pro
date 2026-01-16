@@ -1,6 +1,15 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { supabase } from '../services/supabase';
+import ClientSearch from './ClientSearch';
+
+interface Client {
+    "Cod Bolsa": string;
+    "Cliente": string;
+    "Conta": string;
+    "Email Cliente"?: string;
+    "Email Assessor"?: string;
+}
 
 interface OpenPosition {
     id: any;
@@ -23,51 +32,41 @@ const OpenPositions: React.FC = () => {
     const [quotes, setQuotes] = useState<Record<string, QuoteData>>({});
     const [loading, setLoading] = useState(false);
     const [syncing, setSyncing] = useState(false);
-    const [searchTerm, setSearchTerm] = useState('');
+    const [selectedClient, setSelectedClient] = useState<Client | null>(null);
     const [hasSearched, setHasSearched] = useState(false);
 
-    // Live search with debounce
-    useEffect(() => {
-        const trimmed = searchTerm.trim();
-        if (!trimmed) {
-            setPositions([]);
-            return;
-        }
+    const fetchClientPositions = async (client: Client) => {
+        setLoading(true);
+        setHasSearched(true);
+        setSelectedClient(client);
+        try {
+            // Search by name and account to be precise if possible
+            const { data, error } = await supabase
+                .from('open_positions')
+                .select('*')
+                .or(`cliente_nome.ilike.%${client.Cliente}%,conta.eq.${client.Conta}`)
+                .order('ativo', { ascending: true });
 
-        const timer = setTimeout(async () => {
-            setLoading(true);
-            setHasSearched(true);
-            try {
-                const { data, error } = await supabase
-                    .from('open_positions')
-                    .select('*')
-                    .or(`cliente_nome.ilike.%${trimmed}%,conta.ilike.%${trimmed}%,ativo.ilike.%${trimmed}%`)
-                    .order('ativo', { ascending: true });
-
-                if (error) throw error;
-                setPositions(data || []);
-                if (data && data.length > 0) {
-                    fetchQuotes(data.map(p => p.ativo));
-                } else {
-                    setQuotes({});
-                }
-            } catch (err) {
-                console.error('Erro ao buscar posições:', err);
-            } finally {
-                setLoading(false);
+            if (error) throw error;
+            setPositions(data || []);
+            if (data && data.length > 0) {
+                fetchQuotes(data.map(p => p.ativo));
+            } else {
+                setQuotes({});
             }
-        }, 500);
-
-        return () => clearTimeout(timer);
-    }, [searchTerm]);
+        } catch (err) {
+            console.error('Erro ao buscar posições:', err);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const fetchQuotes = async (tickers: string[]) => {
         setSyncing(true);
         const uniqueTickers = Array.from(new Set(tickers));
-        const newQuotes: Record<string, QuoteData> = {}; // Start fresh for the filtered set
+        const newQuotes: Record<string, QuoteData> = {};
 
         try {
-            // Limit concurrent requests to avoid rate limits
             for (let i = 0; i < uniqueTickers.length; i += 5) {
                 const chunk = uniqueTickers.slice(i, i + 5);
                 await Promise.all(chunk.map(async (ticker) => {
@@ -111,10 +110,6 @@ const OpenPositions: React.FC = () => {
         return parseFloat(clean) || 0;
     };
 
-    const filteredPositions = useMemo(() => {
-        return positions; // Already filtered by Supabase
-    }, [positions]);
-
     const totals = useMemo(() => {
         return positions.reduce((acc, pos) => {
             const quote = quotes[pos.ativo];
@@ -142,30 +137,25 @@ const OpenPositions: React.FC = () => {
                         <span className="material-symbols-outlined text-4xl">person_search</span>
                     </div>
                     <h2 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">Posições em Aberto</h2>
-                    <p className="text-slate-500 dark:text-slate-400 font-medium">Consulte o saldo e resultado em tempo real de seus clientes.</p>
+                    <p className="text-slate-500 dark:text-slate-400 font-medium">Selecione um cliente para consultar o saldo e resultado em tempo real.</p>
                 </div>
 
-                <div className="w-full max-w-lg relative group">
-                    <span className="absolute left-6 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400 text-2xl group-focus-within:text-primary transition-colors">search</span>
-                    <input
-                        autoFocus
-                        type="text"
-                        placeholder="Nome do Cliente, Conta ou Ativo..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full bg-white dark:bg-card-dark border-2 border-slate-100 dark:border-slate-800 rounded-[2rem] pl-16 pr-8 py-5 text-sm font-bold shadow-xl focus:outline-none focus:border-primary/30 focus:ring-4 focus:ring-primary/5 transition-all placeholder:text-slate-400"
+                <div className="w-full max-w-lg">
+                    <ClientSearch
+                        onSelect={(client) => fetchClientPositions(client)}
+                        placeholder="Pesquisar por Nome, Cod Bolsa ou Conta..."
+                        className="shadow-2xl rounded-[2rem]"
                     />
                 </div>
 
-                <div className="grid grid-cols-3 gap-4 w-full max-w-lg mt-4">
+                <div className="grid grid-cols-3 gap-4 w-full max-w-lg mt-4 opacity-50 grayscale pointer-events-none">
                     {['VALE3', 'PETR4', 'ITUB4'].map(t => (
-                        <button
+                        <div
                             key={t}
-                            onClick={() => setSearchTerm(t)}
-                            className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:border-primary/30 hover:text-primary transition-all"
+                            className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center"
                         >
                             {t}
-                        </button>
+                        </div>
                     ))}
                 </div>
             </div>
@@ -188,18 +178,21 @@ const OpenPositions: React.FC = () => {
             {/* Header with Search */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div>
-                    <h2 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">Resultados para: {searchTerm || 'Busca mestre'}</h2>
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Total de {positions.length} registros encontrados</p>
+                    <h2 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter italic truncate max-w-md">
+                        {selectedClient?.Cliente || 'Posições do Cliente'}
+                    </h2>
+                    <div className="flex items-center gap-3 mt-1">
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Conta: {selectedClient?.Conta || '---'}</p>
+                        <span className="h-1 w-1 rounded-full bg-slate-300"></span>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{positions.length} Ativos</p>
+                    </div>
                 </div>
-                <div className="flex gap-2 min-w-[300px]">
-                    <div className="relative flex-1 group">
-                        <span className="absolute left-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400 text-lg group-focus-within:text-primary transition-colors">search</span>
-                        <input
-                            type="text"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full bg-white dark:bg-card-dark border border-slate-200 dark:border-slate-800 rounded-xl pl-12 pr-4 py-2.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all shadow-sm"
-                            placeholder="Pesquisar..."
+                <div className="flex gap-2 min-w-[350px]">
+                    <div className="flex-1">
+                        <ClientSearch
+                            onSelect={(client) => fetchClientPositions(client)}
+                            placeholder="Mudar cliente..."
+                            showHeaderStyle={true}
                         />
                     </div>
                     <button
@@ -207,9 +200,9 @@ const OpenPositions: React.FC = () => {
                         onClick={() => {
                             setHasSearched(false);
                             setPositions([]);
-                            setSearchTerm('');
+                            setSelectedClient(null);
                         }}
-                        className="bg-slate-100 dark:bg-slate-800 text-slate-400 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all shadow-sm"
+                        className="h-12 bg-slate-100 dark:bg-slate-800 text-slate-400 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all shadow-sm"
                     >
                         Limpar
                     </button>
@@ -337,7 +330,7 @@ const OpenPositions: React.FC = () => {
                 {positions.length === 0 && (
                     <div className="py-20 flex flex-col items-center justify-center text-slate-400">
                         <span className="material-symbols-outlined text-4xl mb-2 opacity-20">inventory_2</span>
-                        <p className="text-[10px] font-black uppercase tracking-widest">Nenhuma posição em aberto encontrada para "{searchTerm}"</p>
+                        <p className="text-[10px] font-black uppercase tracking-widest">Nenhuma posição em aberto encontrada para "{selectedClient?.Cliente}"</p>
                     </div>
                 )}
             </div>
