@@ -12,6 +12,7 @@ import Login from './components/Login.tsx';
 import UserManagement from './components/UserManagement.tsx';
 import ApprovalsLayout from './components/ApprovalsLayout';
 import PerformanceAnalysis from './components/PerformanceAnalysis.tsx';
+import OpenPositions from './components/OpenPositions.tsx';
 import { Session } from '@supabase/supabase-js';
 import { copyAndOpenOutlook, generateOrderEmailHtml, generateOrderEmailSubject, generateOrderEmailPlainText } from './utils/emailGenerator.ts';
 
@@ -22,7 +23,7 @@ const App: React.FC = () => {
   const [userProfile, setUserProfile] = useState<any>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
 
-  const [activeTab, setActiveTab] = useState<'ordens' | 'laminas' | 'swing-trade' | 'gemini' | 'renda-fixa' | 'relatorios' | 'gestao-usuarios' | 'analise-performance'>('ordens');
+  const [activeTab, setActiveTab] = useState<'ordens' | 'laminas' | 'swing-trade' | 'gemini' | 'renda-fixa' | 'relatorios' | 'gestao-usuarios' | 'analise-performance' | 'posicoes-aberto'>('ordens');
   const [expandedCategory, setExpandedCategory] = useState<'rv' | 'rf' | 'rel' | 'config' | null>('rv');
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
 
@@ -63,52 +64,48 @@ const App: React.FC = () => {
   useEffect(() => {
     let mounted = true;
 
-    const initSession = async () => {
-      try {
-        const { data: { session: initialSession } } = await supabase.auth.getSession();
-        if (!mounted) return;
-
-        setSession(initialSession);
-        if (initialSession) {
-          await fetchProfile(initialSession.user.id);
-        }
-      } catch (err) {
-        console.error('Session init error:', err);
-      } finally {
-        if (mounted) setIsAuthLoading(false);
-      }
-    };
-
-    initSession();
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
-      console.log('Auth event:', event);
-      if (!mounted) return;
-
-      if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
-        setSession(currentSession);
-        if (currentSession) {
-          setIsAuthLoading(true);
-          await fetchProfile(currentSession.user.id);
-          setIsAuthLoading(false);
-        }
-      } else if (event === 'SIGNED_OUT') {
-        setSession(null);
-        setUserProfile(null);
-        setIsAuthLoading(false);
-      } else if (event === 'TOKEN_REFRESHED' && currentSession) {
-        setSession(currentSession);
-      }
-    });
-
-    // Safety timeout: Never stay loading for more than 5 seconds
+    // Safety timeout: Ensure loading screen eventually disappears
     const safetyTimer = setTimeout(() => {
       if (mounted && isAuthLoading) {
         console.warn('Auth loading safety timeout hit');
         setIsAuthLoading(false);
       }
     }, 5000);
+
+    const initialize = async () => {
+      try {
+        const { data: { session: initialSession } } = await supabase.auth.getSession();
+        if (!mounted) return;
+
+        setSession(initialSession);
+        if (initialSession) {
+          await fetchProfile(initialSession.user);
+        }
+      } catch (err) {
+        console.error('Initialization error:', err);
+      } finally {
+        if (mounted) setIsAuthLoading(false);
+      }
+    };
+
+    initialize();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
+      console.log('Auth event:', event);
+      if (!mounted) return;
+
+      setSession(currentSession);
+
+      if (currentSession) {
+        // Only show loading if we really need to fetch a new profile
+        await fetchProfile(currentSession.user);
+      } else {
+        setUserProfile(null);
+      }
+
+      setIsAuthLoading(false);
+    });
 
     return () => {
       mounted = false;
@@ -142,28 +139,25 @@ const App: React.FC = () => {
     fetchData();
   }, [session?.user.id]);
 
-  const fetchProfile = async (userId: string) => {
+  const fetchProfile = async (user: any) => {
+    if (!user) return;
     try {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', userId)
+        .eq('id', user.id)
         .single();
 
       if (error) {
-        console.warn('Profile not found in table, using metadata fallback:', error.message);
-        // Use session data directly from auth.users (more reliable than calling getSession again)
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const fallbackProfile = {
-            id: userId,
-            role: user.user_metadata?.role || 'usuario_rv',
-            full_name: user.user_metadata?.full_name || 'Usuário',
-            email: user.email
-          };
-          setUserProfile(fallbackProfile);
-          handleRoleRedirect(fallbackProfile.role);
-        }
+        console.warn('Profile not found, using metadata fallback');
+        const fallbackProfile = {
+          id: user.id,
+          role: user.user_metadata?.role || 'usuario_rv',
+          full_name: user.user_metadata?.full_name || 'Usuário',
+          email: user.email
+        };
+        setUserProfile(fallbackProfile);
+        handleRoleRedirect(fallbackProfile.role);
       } else {
         setUserProfile(data);
         handleRoleRedirect(data.role);
@@ -423,6 +417,65 @@ const App: React.FC = () => {
 
   // Removed early return for 'ordens' to unify layout
 
+  const renderContent = () => {
+    if (!userProfile) return null;
+
+    switch (activeTab) {
+      case 'ordens': return <ClientGroup
+        key={selectedClientId || 'none'}
+        client={clients.find(c => c.id === selectedClientId) || clients[0]}
+        onUpdateClient={(updated) => setClients(prev => prev.map(c => c.id === updated.id ? updated : c))}
+        onPreview={() => setPreviewClient(clients.find(c => c.id === selectedClientId) || clients[0])}
+      />;
+      case 'laminas': return <HawkGenerator />;
+      case 'swing-trade': return <SwingTradeGenerator />;
+      case 'renda-fixa':
+      case 'fixed-income-compromissadas': return <FixedIncomeCompromissadas />;
+      case 'gestao-usuarios': return <UserManagement />;
+      case 'analise-performance': return <PerformanceAnalysis />;
+      case 'posicoes-aberto': return <OpenPositions />;
+      case 'gemini': return (
+        <div className="flex-1 flex flex-col p-8 gap-6 overflow-hidden">
+          <div className="flex-1 bg-white dark:bg-card-dark rounded-3xl border border-slate-100 dark:border-slate-800 p-8 overflow-y-auto custom-scrollbar shadow-sm">
+            {geminiResponse ? (
+              <div className="prose prose-slate dark:prose-invert max-w-none">
+                {geminiResponse.split('\n').map((line, i) => <p key={i}>{line}</p>)}
+              </div>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-slate-300">
+                <span className="material-symbols-outlined text-6xl mb-4">psychology</span>
+                <p className="font-black text-sm uppercase tracking-widest">IA FinancePro aguardando comando</p>
+              </div>
+            )}
+          </div>
+          <div className="flex gap-4">
+            <input
+              type="text"
+              value={geminiPrompt}
+              onChange={(e) => setGeminiPrompt(e.target.value)}
+              placeholder="Pergunte algo sobre os dados..."
+              className="flex-1 bg-white dark:bg-card-dark border border-slate-200 dark:border-slate-800 rounded-2xl px-6 py-4 text-sm font-medium shadow-sm focus:ring-2 focus:ring-primary/20 transition-all"
+            />
+            <button
+              onClick={async () => {
+                setIsLoadingGemini(true);
+                const resp = await getGeminiResponse(geminiPrompt);
+                setGeminiResponse(resp);
+                setIsLoadingGemini(false);
+              }}
+              disabled={isLoadingGemini}
+              className="bg-primary px-8 rounded-2xl text-[#102218] font-black uppercase text-xs tracking-widest shadow-lg shadow-primary/20 hover:brightness-110 active:scale-95 transition-all flex items-center gap-3"
+            >
+              {isLoadingGemini ? <span className="material-symbols-outlined animate-spin">progress_activity</span> : <span className="material-symbols-outlined">send</span>}
+              Consultar
+            </button>
+          </div>
+        </div>
+      );
+      default: return null;
+    }
+  };
+
   return (
     <div className="flex h-screen bg-background-light dark:bg-background-dark text-slate-800 dark:text-slate-200 overflow-hidden font-display">
       {/* Sidebar V2 */}
@@ -454,45 +507,79 @@ const App: React.FC = () => {
             <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest px-1">Módulos</h3>
 
             <nav className="flex flex-col gap-2">
-              <button
-                onClick={() => {
-                  setActiveTab('ordens');
-                  setExpandedCategory('rv');
-                }}
-                className={`w-full flex items-center gap-3 p-3.5 rounded-xl border transition-all text-left shadow-sm ${activeTab === 'ordens'
-                  ? 'bg-primary/10 border-primary text-primary shadow-primary/5'
-                  : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600'}`}
-              >
-                <span className="material-icons-outlined text-[18px]">query_stats</span>
-                <span className="text-[11px] font-black uppercase tracking-tighter">Execução de Ordens</span>
-              </button>
+              {/* Renda Variável Section */}
+              <div className="space-y-1 text-left">
+                <button
+                  onClick={() => {
+                    setExpandedCategory(prev => prev === 'rv' ? null : 'rv');
+                  }}
+                  className={`w-full flex items-center justify-between p-3.5 rounded-xl border transition-all text-left shadow-sm ${['ordens', 'laminas', 'swing-trade', 'posicoes-aberto', 'analise-performance'].includes(activeTab)
+                    ? 'bg-primary/10 border-primary text-primary shadow-primary/5'
+                    : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600'}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="material-icons-outlined text-[18px]">signal_cellular_alt</span>
+                    <span className="text-[11px] font-black uppercase tracking-tighter">Renda Variável</span>
+                  </div>
+                  <span className={`material-symbols-outlined text-sm transition-transform ${expandedCategory === 'rv' ? 'rotate-180' : ''}`}>expand_more</span>
+                </button>
 
-              <button
-                onClick={() => {
-                  setActiveTab('laminas');
-                  setExpandedCategory('rv');
-                }}
-                className={`w-full flex items-center gap-3 p-3.5 rounded-xl border transition-all text-left shadow-sm ${activeTab === 'laminas'
-                  ? 'bg-primary/10 border-primary text-primary shadow-primary/5'
-                  : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600'}`}
-              >
-                <span className="material-icons-outlined text-[18px]">description</span>
-                <span className="text-[11px] font-black uppercase tracking-tighter">Hawk Strategy</span>
-              </button>
+                {(expandedCategory === 'rv' || ['ordens', 'laminas', 'swing-trade', 'posicoes-aberto', 'analise-performance'].includes(activeTab)) && (
+                  <div className="pl-4 pr-1 pt-1 space-y-1 animate-in slide-in-from-top-2 duration-200">
+                    <button
+                      onClick={() => setActiveTab('ordens')}
+                      className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-all text-left text-[10px] font-black uppercase tracking-widest ${activeTab === 'ordens'
+                        ? 'text-primary bg-primary/5'
+                        : 'text-slate-500 hover:text-primary hover:bg-primary/5'}`}
+                    >
+                      <span className="material-icons-outlined text-base">query_stats</span>
+                      Execução de Ordens
+                    </button>
 
-              <button
-                onClick={() => {
-                  setActiveTab('swing-trade');
-                  setExpandedCategory('rv');
-                }}
-                className={`w-full flex items-center gap-3 p-3.5 rounded-xl border transition-all text-left shadow-sm ${activeTab === 'swing-trade'
-                  ? 'bg-primary/10 border-primary text-primary shadow-primary/5'
-                  : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600'}`}
-              >
-                <span className="material-icons-outlined text-[18px]">trending_up</span>
-                <span className="text-[11px] font-black uppercase tracking-tighter">Swing Trade</span>
-              </button>
+                    <button
+                      onClick={() => setActiveTab('laminas')}
+                      className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-all text-left text-[10px] font-black uppercase tracking-widest ${activeTab === 'laminas'
+                        ? 'text-primary bg-primary/5'
+                        : 'text-slate-500 hover:text-primary hover:bg-primary/5'}`}
+                    >
+                      <span className="material-icons-outlined text-base">description</span>
+                      Hawk Strategy
+                    </button>
 
+                    <button
+                      onClick={() => setActiveTab('swing-trade')}
+                      className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-all text-left text-[10px] font-black uppercase tracking-widest ${activeTab === 'swing-trade'
+                        ? 'text-primary bg-primary/5'
+                        : 'text-slate-500 hover:text-primary hover:bg-primary/5'}`}
+                    >
+                      <span className="material-icons-outlined text-base">trending_up</span>
+                      Swing Trade
+                    </button>
+
+                    <button
+                      onClick={() => setActiveTab('posicoes-aberto')}
+                      className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-all text-left text-[10px] font-black uppercase tracking-widest ${activeTab === 'posicoes-aberto'
+                        ? 'text-primary bg-primary/5'
+                        : 'text-slate-500 hover:text-primary hover:bg-primary/5'}`}
+                    >
+                      <span className="material-icons-outlined text-base">inventory_2</span>
+                      Posições em Aberto
+                    </button>
+
+                    <button
+                      onClick={() => setActiveTab('analise-performance')}
+                      className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-all text-left text-[10px] font-black uppercase tracking-widest ${activeTab === 'analise-performance'
+                        ? 'text-primary bg-primary/5'
+                        : 'text-slate-500 hover:text-primary hover:bg-primary/5'}`}
+                    >
+                      <span className="material-icons-outlined text-base">analytics</span>
+                      Análise de Performance
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Renda Fixa Section */}
               <div className="space-y-1 text-left">
                 <button
                   onClick={() => {
@@ -524,21 +611,9 @@ const App: React.FC = () => {
                 )}
               </div>
 
-              <button
-                onClick={() => {
-                  setActiveTab('analise-performance');
-                  setExpandedCategory('rel');
-                }}
-                className={`w-full flex items-center gap-3 p-3.5 rounded-xl border transition-all text-left shadow-sm ${activeTab === 'analise-performance'
-                  ? 'bg-primary/10 border-primary text-primary shadow-primary/5'
-                  : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600'}`}
-              >
-                <span className="material-icons-outlined text-[18px]">analytics</span>
-                <span className="text-[11px] font-black uppercase tracking-tighter">Análise Performance</span>
-              </button>
               <div className="mt-auto pt-6 px-1 flex flex-col gap-2">
                 <div className="text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-[0.2em] text-center mb-2">
-                  FinancePro v5.3.0
+                  FinancePro v5.4.1
                 </div>
               </div>
             </nav>
@@ -677,11 +752,12 @@ const App: React.FC = () => {
               {activeTab === 'ordens' ? 'Fila de Disparo' :
                 activeTab === 'laminas' ? 'Hawk Strategy' :
                   activeTab === 'swing-trade' ? 'Swing Trade Safra' :
-                    activeTab === 'renda-fixa' || activeTab === 'fixed-income-compromissadas' ? 'Investimentos RF' :
-                      activeTab === 'relatorios' ? 'Central de Relatórios' :
-                        activeTab === 'gestao-usuarios' ? 'Administração de Usuários' :
-                          activeTab === 'analise-performance' ? 'Análise de Performance' :
-                            'AI Assistant'}
+                    activeTab === 'posicoes-aberto' ? 'Posições em Aberto' :
+                      activeTab === 'renda-fixa' || activeTab === 'fixed-income-compromissadas' ? 'Investimentos RF' :
+                        activeTab === 'relatorios' ? 'Central de Relatórios' :
+                          activeTab === 'gestao-usuarios' ? 'Administração de Usuários' :
+                            activeTab === 'analise-performance' ? 'Análise de Performance' :
+                              'AI Assistant'}
             </h1>
             <p className="text-sm font-medium text-slate-500 italic">
               {activeTab === 'ordens' ? 'Disparo de ordens estruturadas via API/Outlook' :
@@ -742,6 +818,7 @@ const App: React.FC = () => {
           {activeTab === 'swing-trade' && <SwingTradeGenerator userEmail={userProfile?.email} />}
           {activeTab === 'gestao-usuarios' && <UserManagement />}
           {activeTab === 'analise-performance' && <PerformanceAnalysis />}
+          {activeTab === 'posicoes-aberto' && <OpenPositions />}
 
           {activeTab === 'gemini' && (
             <div className="bg-white dark:bg-card-dark rounded-[2.5rem] p-8 shadow-sm border border-slate-100 dark:border-slate-800 transition-all">
