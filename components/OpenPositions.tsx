@@ -26,32 +26,40 @@ const OpenPositions: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [hasSearched, setHasSearched] = useState(false);
 
-    const handleSearch = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!searchTerm.trim()) return;
-
-        setHasSearched(true);
-        setLoading(true);
-        try {
-            const { data, error } = await supabase
-                .from('open_positions')
-                .select('*')
-                .or(`cliente_nome.ilike.%${searchTerm}%,conta.ilike.%${searchTerm}%,ativo.ilike.%${searchTerm}%`)
-                .order('ativo', { ascending: true });
-
-            if (error) throw error;
-            setPositions(data || []);
-            if (data && data.length > 0) {
-                fetchQuotes(data.map(p => p.ativo));
-            } else {
-                setQuotes({});
-            }
-        } catch (err) {
-            console.error('Erro ao buscar posições:', err);
-        } finally {
-            setLoading(false);
+    // Live search with debounce
+    useEffect(() => {
+        const trimmed = searchTerm.trim();
+        if (!trimmed) {
+            setPositions([]);
+            return;
         }
-    };
+
+        const timer = setTimeout(async () => {
+            setLoading(true);
+            setHasSearched(true);
+            try {
+                const { data, error } = await supabase
+                    .from('open_positions')
+                    .select('*')
+                    .or(`cliente_nome.ilike.%${trimmed}%,conta.ilike.%${trimmed}%,ativo.ilike.%${trimmed}%`)
+                    .order('ativo', { ascending: true });
+
+                if (error) throw error;
+                setPositions(data || []);
+                if (data && data.length > 0) {
+                    fetchQuotes(data.map(p => p.ativo));
+                } else {
+                    setQuotes({});
+                }
+            } catch (err) {
+                console.error('Erro ao buscar posições:', err);
+            } finally {
+                setLoading(false);
+            }
+        }, 500);
+
+        return () => clearTimeout(timer);
+    }, [searchTerm]);
 
     const fetchQuotes = async (tickers: string[]) => {
         setSyncing(true);
@@ -137,7 +145,7 @@ const OpenPositions: React.FC = () => {
                     <p className="text-slate-500 dark:text-slate-400 font-medium">Consulte o saldo e resultado em tempo real de seus clientes.</p>
                 </div>
 
-                <form onSubmit={handleSearch} className="w-full max-w-lg relative group">
+                <div className="w-full max-w-lg relative group">
                     <span className="absolute left-6 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400 text-2xl group-focus-within:text-primary transition-colors">search</span>
                     <input
                         autoFocus
@@ -147,23 +155,13 @@ const OpenPositions: React.FC = () => {
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="w-full bg-white dark:bg-card-dark border-2 border-slate-100 dark:border-slate-800 rounded-[2rem] pl-16 pr-8 py-5 text-sm font-bold shadow-xl focus:outline-none focus:border-primary/30 focus:ring-4 focus:ring-primary/5 transition-all placeholder:text-slate-400"
                     />
-                    <button
-                        type="submit"
-                        className="absolute right-4 top-1/2 -translate-y-1/2 bg-slate-900 dark:bg-primary text-primary dark:text-white px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:brightness-110 active:scale-95 transition-all shadow-lg"
-                    >
-                        Buscar
-                    </button>
-                </form>
+                </div>
 
                 <div className="grid grid-cols-3 gap-4 w-full max-w-lg mt-4">
                     {['VALE3', 'PETR4', 'ITUB4'].map(t => (
                         <button
                             key={t}
-                            onClick={() => {
-                                setSearchTerm(t);
-                                // Workaround to trigger form submit
-                                setTimeout(() => document.querySelector('form')?.requestSubmit(), 10);
-                            }}
+                            onClick={() => setSearchTerm(t)}
                             className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:border-primary/30 hover:text-primary transition-all"
                         >
                             {t}
@@ -174,7 +172,7 @@ const OpenPositions: React.FC = () => {
         );
     }
 
-    if (loading) {
+    if (loading && positions.length === 0) {
         return (
             <div className="flex-1 flex items-center justify-center bg-transparent">
                 <div className="flex flex-col items-center gap-4">
@@ -190,23 +188,20 @@ const OpenPositions: React.FC = () => {
             {/* Header with Search */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div>
-                    <h2 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">Resultados para: {searchTerm}</h2>
+                    <h2 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">Resultados para: {searchTerm || 'Busca mestre'}</h2>
                     <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Total de {positions.length} registros encontrados</p>
                 </div>
-                <form onSubmit={handleSearch} className="flex gap-2 min-w-[300px]">
-                    <div className="relative flex-1">
-                        <span className="absolute left-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400 text-lg">search</span>
+                <div className="flex gap-2 min-w-[300px]">
+                    <div className="relative flex-1 group">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400 text-lg group-focus-within:text-primary transition-colors">search</span>
                         <input
                             type="text"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full bg-white dark:bg-card-dark border border-slate-200 dark:border-slate-800 rounded-xl pl-12 pr-4 py-2.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-                            placeholder="Nova busca..."
+                            className="w-full bg-white dark:bg-card-dark border border-slate-200 dark:border-slate-800 rounded-xl pl-12 pr-4 py-2.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all shadow-sm"
+                            placeholder="Pesquisar..."
                         />
                     </div>
-                    <button type="submit" className="bg-slate-900 dark:bg-primary text-primary dark:text-white px-4 rounded-xl text-[10px] font-black uppercase tracking-widest hover:brightness-110 transition-all">
-                        Buscar
-                    </button>
                     <button
                         type="button"
                         onClick={() => {
@@ -214,11 +209,11 @@ const OpenPositions: React.FC = () => {
                             setPositions([]);
                             setSearchTerm('');
                         }}
-                        className="bg-slate-100 dark:bg-slate-800 text-slate-400 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all"
+                        className="bg-slate-100 dark:bg-slate-800 text-slate-400 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all shadow-sm"
                     >
                         Limpar
                     </button>
-                </form>
+                </div>
             </div>
 
             {/* Summary Cards */}
