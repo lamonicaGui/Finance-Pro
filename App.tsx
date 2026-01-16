@@ -421,16 +421,38 @@ const App: React.FC = () => {
     if (!userProfile) return null;
 
     switch (activeTab) {
-      case 'ordens': return <ClientGroup
-        key={selectedClientId || 'none'}
-        client={clients.find(c => c.id === selectedClientId) || clients[0]}
-        onUpdateClient={(updated) => setClients(prev => prev.map(c => c.id === updated.id ? updated : c))}
-        onPreview={() => setPreviewClient(clients.find(c => c.id === selectedClientId) || clients[0])}
-      />;
+      case 'ordens': return (
+        <div className="flex flex-col gap-6">
+          <ApprovalsLayout
+            clients={clients}
+            selectedClientId={selectedClientId}
+            onSelectClient={setSelectedClientId}
+            onAddClient={addClient}
+            onAddClientFromMaster={addClientFromMaster}
+            onUpdateClient={updateClient}
+            onRemoveClient={removeClient}
+            onAddOrder={addOrder}
+            onUpdateOrder={updateOrder}
+            onRemoveOrder={removeOrder}
+            onSendEmail={(client) => setPreviewClient(client)}
+            onSendAll={handleSendAll}
+            onLogout={handleLogout}
+            userProfile={userProfile}
+            onSwitchTab={setActiveTab}
+          />
+        </div>
+      );
       case 'laminas': return <HawkGenerator />;
-      case 'swing-trade': return <SwingTradeGenerator />;
+      case 'swing-trade': return <SwingTradeGenerator userEmail={userProfile?.email} />;
       case 'renda-fixa':
-      case 'fixed-income-compromissadas': return <FixedIncomeCompromissadas />;
+        return (
+          <div className="bg-white dark:bg-card-dark rounded-[2.5rem] p-12 border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col items-center justify-center text-center transition-all bg-gradient-to-b from-white to-slate-50/30 dark:from-card-dark dark:to-background-dark/20">
+            <span className="material-symbols-outlined text-6xl text-slate-200 dark:text-slate-700 mb-6">construction</span>
+            <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase mb-2 tracking-tighter italic">Módulo em Desenvolvimento</h3>
+            <p className="text-slate-500 dark:text-slate-400 max-w-md font-medium">Selecione uma opção no menu lateral para começar.</p>
+          </div>
+        );
+      case 'fixed-income-compromissadas': return <FixedIncomeCompromissadas advisorEmail={userProfile?.email} />;
       case 'gestao-usuarios': return <UserManagement />;
       case 'analise-performance': return <PerformanceAnalysis />;
       case 'posicoes-aberto': return <OpenPositions />;
@@ -782,88 +804,7 @@ const App: React.FC = () => {
         </header>
 
         <div className="px-10 py-10 max-w-[1400px]">
-          {activeTab === 'ordens' && (
-            <div className="flex flex-col gap-6">
-              <ApprovalsLayout
-                clients={clients}
-                selectedClientId={selectedClientId}
-                onSelectClient={setSelectedClientId}
-                onAddClient={addClient}
-                onAddClientFromMaster={addClientFromMaster}
-                onUpdateClient={updateClient}
-                onRemoveClient={removeClient}
-                onAddOrder={addOrder}
-                onUpdateOrder={updateOrder}
-                onRemoveOrder={removeOrder}
-                onSendEmail={(client) => setPreviewClient(client)}
-                onSendAll={handleSendAll}
-                onLogout={handleLogout}
-                userProfile={userProfile}
-                onSwitchTab={setActiveTab}
-              />
-            </div>
-          )}
-
-          {(activeTab === 'renda-fixa') && (
-            <div className="bg-white dark:bg-card-dark rounded-[2.5rem] p-12 border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col items-center justify-center text-center transition-all bg-gradient-to-b from-white to-slate-50/30 dark:from-card-dark dark:to-background-dark/20">
-              <span className="material-symbols-outlined text-6xl text-slate-200 dark:text-slate-700 mb-6">construction</span>
-              <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase mb-2 tracking-tighter italic">Módulo em Desenvolvimento</h3>
-              <p className="text-slate-500 dark:text-slate-400 max-w-md font-medium">Selecione uma opção no menu lateral para começar.</p>
-            </div>
-          )}
-
-          {activeTab === 'fixed-income-compromissadas' && <FixedIncomeCompromissadas advisorEmail={userProfile?.email} />}
-
-          {activeTab === 'laminas' && <HawkGenerator />}
-          {activeTab === 'swing-trade' && <SwingTradeGenerator userEmail={userProfile?.email} />}
-          {activeTab === 'gestao-usuarios' && <UserManagement />}
-          {activeTab === 'analise-performance' && <PerformanceAnalysis />}
-          {activeTab === 'posicoes-aberto' && <OpenPositions />}
-
-          {activeTab === 'gemini' && (
-            <div className="bg-white dark:bg-card-dark rounded-[2.5rem] p-8 shadow-sm border border-slate-100 dark:border-slate-800 transition-all">
-              <div className="max-w-2xl mx-auto space-y-6">
-                <div>
-                  <label className="block text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2">Seu Prompt</label>
-                  <textarea
-                    value={geminiPrompt}
-                    onChange={(e) => setGeminiPrompt(e.target.value)}
-                    placeholder="Pergunte algo para o Gemini..."
-                    className="w-full p-6 rounded-[1.5rem] bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary min-h-[120px] resize-none font-medium text-slate-700 dark:text-slate-200 transition-all placeholder:text-slate-400 italic"
-                  ></textarea>
-                </div>
-
-                <div className="flex justify-end">
-                  <button
-                    onClick={handleGeminiSubmit}
-                    disabled={isLoadingGemini || !geminiPrompt.trim()}
-                    className="px-10 py-4 rounded-[1.25rem] bg-[#102218] dark:bg-primary text-primary dark:text-white font-black uppercase text-xs tracking-widest hover:brightness-125 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-3 shadow-xl shadow-primary/10"
-                  >
-                    {isLoadingGemini ? (
-                      <>
-                        <span className="material-symbols-outlined animate-spin text-lg">progress_activity</span>
-                        Processando...
-                      </>
-                    ) : (
-                      <>
-                        <span className="material-symbols-outlined text-lg translate-y-[-1px]">send</span>
-                        Enviar Prompt
-                      </>
-                    )}
-                  </button>
-                </div>
-
-                {geminiResponse && (
-                  <div className="pt-8 border-t border-slate-100 dark:border-slate-800 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    <label className="block text-xs font-black text-primary uppercase tracking-widest mb-4">Resposta do Gemini</label>
-                    <div className="p-8 rounded-[2rem] bg-primary/[0.03] dark:bg-primary/[0.05] border border-primary/10 text-slate-700 dark:text-slate-300 leading-relaxed font-medium shadow-inner italic">
-                      {geminiResponse}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+          {renderContent()}
         </div>
 
         <footer className="p-10 pt-0">
@@ -874,15 +815,15 @@ const App: React.FC = () => {
             </p>
           </div>
         </footer>
-      </main>
+      </main >
 
       {/* Dark Mode Toggle */}
-      <button
+      < button
         className="fixed bottom-10 right-10 h-14 w-14 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl flex items-center justify-center hover:scale-110 hover:-rotate-12 transition-all active:scale-95 group z-[100]"
         onClick={() => document.documentElement.classList.toggle('dark')}
       >
         <span className="material-icons-outlined text-slate-600 dark:text-slate-400 group-hover:text-primary text-2xl">dark_mode</span>
-      </button>
+      </button >
 
       {previewClient && (
         <EmailPreviewModal
@@ -900,7 +841,7 @@ const App: React.FC = () => {
           }}
         />
       )}
-    </div>
+    </div >
   );
 };
 

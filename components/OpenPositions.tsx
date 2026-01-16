@@ -21,26 +21,30 @@ interface QuoteData {
 const OpenPositions: React.FC = () => {
     const [positions, setPositions] = useState<OpenPosition[]>([]);
     const [quotes, setQuotes] = useState<Record<string, QuoteData>>({});
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
     const [syncing, setSyncing] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [hasSearched, setHasSearched] = useState(false);
 
-    useEffect(() => {
-        fetchPositions();
-    }, []);
+    const handleSearch = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!searchTerm.trim()) return;
 
-    const fetchPositions = async () => {
+        setHasSearched(true);
         setLoading(true);
         try {
             const { data, error } = await supabase
                 .from('open_positions')
                 .select('*')
+                .or(`cliente_nome.ilike.%${searchTerm}%,conta.ilike.%${searchTerm}%,ativo.ilike.%${searchTerm}%`)
                 .order('ativo', { ascending: true });
 
             if (error) throw error;
             setPositions(data || []);
             if (data && data.length > 0) {
                 fetchQuotes(data.map(p => p.ativo));
+            } else {
+                setQuotes({});
             }
         } catch (err) {
             console.error('Erro ao buscar posições:', err);
@@ -52,31 +56,35 @@ const OpenPositions: React.FC = () => {
     const fetchQuotes = async (tickers: string[]) => {
         setSyncing(true);
         const uniqueTickers = Array.from(new Set(tickers));
-        const newQuotes: Record<string, QuoteData> = { ...quotes };
+        const newQuotes: Record<string, QuoteData> = {}; // Start fresh for the filtered set
 
         try {
-            await Promise.all(uniqueTickers.map(async (ticker) => {
-                try {
-                    const yahooTicker = ticker.endsWith('.SA') ? ticker : `${ticker}.SA`;
-                    const res = await fetch(`/api/yahoo/v8/finance/chart/${yahooTicker}?interval=1d&range=1d`);
-                    if (res.ok) {
-                        const data = await res.json();
-                        const result = data.chart?.result?.[0];
-                        const price = result?.meta?.regularMarketPrice;
-                        const prevClose = result?.meta?.chartPreviousClose;
+            // Limit concurrent requests to avoid rate limits
+            for (let i = 0; i < uniqueTickers.length; i += 5) {
+                const chunk = uniqueTickers.slice(i, i + 5);
+                await Promise.all(chunk.map(async (ticker) => {
+                    try {
+                        const yahooTicker = ticker.endsWith('.SA') ? ticker : `${ticker}.SA`;
+                        const res = await fetch(`/api/yahoo/v8/finance/chart/${yahooTicker}?interval=1d&range=1d`);
+                        if (res.ok) {
+                            const data = await res.json();
+                            const result = data.chart?.result?.[0];
+                            const price = result?.meta?.regularMarketPrice;
+                            const prevClose = result?.meta?.chartPreviousClose;
 
-                        if (price) {
-                            newQuotes[ticker] = {
-                                price: price,
-                                change: price - prevClose,
-                                changePercent: ((price - prevClose) / prevClose) * 100
-                            };
+                            if (price) {
+                                newQuotes[ticker] = {
+                                    price: price,
+                                    change: price - prevClose,
+                                    changePercent: prevClose ? ((price - prevClose) / prevClose) * 100 : 0
+                                };
+                            }
                         }
+                    } catch (e) {
+                        console.warn(`Erro ao buscar cotação para ${ticker}:`, e);
                     }
-                } catch (e) {
-                    console.warn(`Erro ao buscar cotação para ${ticker}:`, e);
-                }
-            }));
+                }));
+            }
             setQuotes(newQuotes);
         } catch (err) {
             console.error('Erro na sincronização de preços:', err);
@@ -96,15 +104,11 @@ const OpenPositions: React.FC = () => {
     };
 
     const filteredPositions = useMemo(() => {
-        return positions.filter(p =>
-            p.ativo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            p.cliente_nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            p.conta?.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-    }, [positions, searchTerm]);
+        return positions; // Already filtered by Supabase
+    }, [positions]);
 
     const totals = useMemo(() => {
-        return filteredPositions.reduce((acc, pos) => {
+        return positions.reduce((acc, pos) => {
             const quote = quotes[pos.ativo];
             const currentPrice = quote?.price || 0;
             const q = parseBRL(pos.qtd || pos.Qtd);
@@ -120,7 +124,55 @@ const OpenPositions: React.FC = () => {
                 totalResultado: acc.totalResultado + result
             };
         }, { totalCusto: 0, totalSaldo: 0, totalResultado: 0 });
-    }, [filteredPositions, quotes]);
+    }, [positions, quotes]);
+
+    if (!hasSearched && !loading) {
+        return (
+            <div className="flex-1 flex flex-col items-center justify-center p-10 gap-8 animate-in fade-in duration-500">
+                <div className="text-center space-y-4 max-w-xl">
+                    <div className="h-16 w-16 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mx-auto mb-6">
+                        <span className="material-symbols-outlined text-4xl">person_search</span>
+                    </div>
+                    <h2 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">Posições em Aberto</h2>
+                    <p className="text-slate-500 dark:text-slate-400 font-medium">Consulte o saldo e resultado em tempo real de seus clientes.</p>
+                </div>
+
+                <form onSubmit={handleSearch} className="w-full max-w-lg relative group">
+                    <span className="absolute left-6 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400 text-2xl group-focus-within:text-primary transition-colors">search</span>
+                    <input
+                        autoFocus
+                        type="text"
+                        placeholder="Nome do Cliente, Conta ou Ativo..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full bg-white dark:bg-card-dark border-2 border-slate-100 dark:border-slate-800 rounded-[2rem] pl-16 pr-8 py-5 text-sm font-bold shadow-xl focus:outline-none focus:border-primary/30 focus:ring-4 focus:ring-primary/5 transition-all placeholder:text-slate-400"
+                    />
+                    <button
+                        type="submit"
+                        className="absolute right-4 top-1/2 -translate-y-1/2 bg-slate-900 dark:bg-primary text-primary dark:text-white px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:brightness-110 active:scale-95 transition-all shadow-lg"
+                    >
+                        Buscar
+                    </button>
+                </form>
+
+                <div className="grid grid-cols-3 gap-4 w-full max-w-lg mt-4">
+                    {['VALE3', 'PETR4', 'ITUB4'].map(t => (
+                        <button
+                            key={t}
+                            onClick={() => {
+                                setSearchTerm(t);
+                                // Workaround to trigger form submit
+                                setTimeout(() => document.querySelector('form')?.requestSubmit(), 10);
+                            }}
+                            className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:border-primary/30 hover:text-primary transition-all"
+                        >
+                            {t}
+                        </button>
+                    ))}
+                </div>
+            </div>
+        );
+    }
 
     if (loading) {
         return (
@@ -135,8 +187,42 @@ const OpenPositions: React.FC = () => {
 
     return (
         <div className="flex-1 flex flex-col p-10 gap-8 animate-in fade-in duration-500">
+            {/* Header with Search */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div>
+                    <h2 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">Resultados para: {searchTerm}</h2>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Total de {positions.length} registros encontrados</p>
+                </div>
+                <form onSubmit={handleSearch} className="flex gap-2 min-w-[300px]">
+                    <div className="relative flex-1">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400 text-lg">search</span>
+                        <input
+                            type="text"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full bg-white dark:bg-card-dark border border-slate-200 dark:border-slate-800 rounded-xl pl-12 pr-4 py-2.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                            placeholder="Nova busca..."
+                        />
+                    </div>
+                    <button type="submit" className="bg-slate-900 dark:bg-primary text-primary dark:text-white px-4 rounded-xl text-[10px] font-black uppercase tracking-widest hover:brightness-110 transition-all">
+                        Buscar
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setHasSearched(false);
+                            setPositions([]);
+                            setSearchTerm('');
+                        }}
+                        className="bg-slate-100 dark:bg-slate-800 text-slate-400 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all"
+                    >
+                        Limpar
+                    </button>
+                </form>
+            </div>
+
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div className="bg-white/40 dark:bg-card-dark/40 backdrop-blur-xl border border-white/20 dark:border-slate-800 rounded-[2rem] p-8 shadow-sm">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Saldo Bruto Total</p>
                     <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">
@@ -158,20 +244,19 @@ const OpenPositions: React.FC = () => {
                     </p>
                 </div>
 
-                <div className="bg-white/40 dark:bg-card-dark/40 backdrop-blur-xl border border-white/20 dark:border-slate-800 rounded-[2rem] p-8 shadow-sm">
+                <div className="bg-white/40 dark:bg-card-dark/40 backdrop-blur-xl border border-white/20 dark:border-slate-800 rounded-[2rem] p-8 shadow-sm lg:col-span-1 md:col-span-2">
                     <div className="flex justify-between items-start mb-4">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtro Rápido</p>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Status da Sincronização</p>
                         {syncing && <span className="material-symbols-outlined text-sm animate-spin text-primary">sync</span>}
                     </div>
-                    <div className="relative">
-                        <span className="absolute left-4 top-3 material-symbols-outlined text-slate-400 text-lg">search</span>
-                        <input
-                            type="text"
-                            placeholder="Ativo, Titular ou Conta..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full bg-slate-100/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl pl-12 pr-4 py-2.5 text-xs font-bold text-slate-700 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-                        />
+                    <div className="flex items-center gap-4">
+                        <div className="flex-1 h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                            <div
+                                className="h-full bg-primary transition-all duration-1000"
+                                style={{ width: syncing ? '100%' : '0%', opacity: syncing ? 1 : 0 }}
+                            ></div>
+                        </div>
+                        <span className="text-[10px] font-black text-slate-500 uppercase">{syncing ? 'Sincronizando Preços...' : 'Preços Atualizados'}</span>
                     </div>
                 </div>
             </div>
@@ -193,7 +278,7 @@ const OpenPositions: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                            {filteredPositions.map((pos) => {
+                            {positions.map((pos) => {
                                 const quote = quotes[pos.ativo];
                                 const currentPrice = quote?.price || 0;
                                 const q = parseBRL(pos.qtd || pos.Qtd);
@@ -254,10 +339,10 @@ const OpenPositions: React.FC = () => {
                         </tbody>
                     </table>
                 </div>
-                {filteredPositions.length === 0 && (
+                {positions.length === 0 && (
                     <div className="py-20 flex flex-col items-center justify-center text-slate-400">
                         <span className="material-symbols-outlined text-4xl mb-2 opacity-20">inventory_2</span>
-                        <p className="text-[10px] font-black uppercase tracking-widest">Nenhuma posição em aberto encontrada</p>
+                        <p className="text-[10px] font-black uppercase tracking-widest">Nenhuma posição em aberto encontrada para "{searchTerm}"</p>
                     </div>
                 )}
             </div>
