@@ -154,6 +154,7 @@ const App: React.FC = () => {
           id: user.id,
           role: user.user_metadata?.role || 'usuario_rv',
           full_name: user.user_metadata?.full_name || 'Usuário',
+          avatar_url: user.user_metadata?.avatar_url || null,
           email: user.email
         };
         setUserProfile(fallbackProfile);
@@ -164,6 +165,13 @@ const App: React.FC = () => {
       }
     } catch (err) {
       console.error('Error in fetchProfile:', err);
+      // Final emergency fallback
+      setUserProfile({
+        id: user.id,
+        role: 'usuario_rv',
+        full_name: 'Usuário',
+        email: user.email
+      });
     }
   };
 
@@ -176,6 +184,8 @@ const App: React.FC = () => {
   };
 
   const handleLogout = async () => {
+    setUserProfile(null);
+    setSession(null);
     await supabase.auth.signOut();
   };
 
@@ -418,7 +428,14 @@ const App: React.FC = () => {
   // Removed early return for 'ordens' to unify layout
 
   const renderContent = () => {
-    if (!userProfile) return null;
+    if (!userProfile) {
+      return (
+        <div className="flex flex-col items-center justify-center p-20 gap-4 animate-pulse">
+          <span className="material-symbols-outlined animate-spin text-primary text-5xl">progress_activity</span>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Personalizando seu painel...</p>
+        </div>
+      );
+    }
 
     switch (activeTab) {
       case 'ordens': return (
