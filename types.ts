@@ -20,6 +20,7 @@ export interface OrderItem {
   mode: OrderMode;
   basis: OrderBasis;
   value: number;
+  assetName?: string;
   stopLoss: boolean;
   stopGainValue?: number;
   stopLossValue?: number;

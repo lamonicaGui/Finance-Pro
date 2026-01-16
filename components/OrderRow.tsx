@@ -48,12 +48,18 @@ const OrderRow: React.FC<OrderRowProps> = ({ order, onUpdate, onRemove }) => {
       if (res.ok) {
         const data = await res.json();
         const price = data.chart?.result?.[0]?.meta?.regularMarketPrice;
-        if (price) {
-          const updates: Partial<OrderItem> = { lastPrice: price };
-          // Se estiver em modo Mercado, o preço da ordem segue a cotação
-          if (order.mode === 'Mercado') {
-            updates.orderPrice = price;
-          }
+        const shortName = data.chart?.result?.[0]?.meta?.shortName || data.chart?.result?.[0]?.meta?.longName;
+
+        const updates: Partial<OrderItem> = {};
+        if (price) updates.lastPrice = price;
+        if (shortName) updates.assetName = shortName;
+
+        // Se estiver em modo Mercado, o preço da ordem segue a cotação
+        if (order.mode === 'Mercado' && price) {
+          updates.orderPrice = price;
+        }
+
+        if (Object.keys(updates).length > 0) {
           onUpdate(updates);
         }
       }
@@ -64,24 +70,32 @@ const OrderRow: React.FC<OrderRowProps> = ({ order, onUpdate, onRemove }) => {
     }
   };
 
-  const estimatedFinance = order.basis === 'Quantidade'
-    ? (order.orderPrice || 0) * (order.value || 0)
-    : (order.value || 0);
+  const estimatedFinance = (order.orderPrice || 0) * (order.value || 0);
+  const estimatedQty = order.orderPrice && order.orderPrice > 0
+    ? Math.floor((order.value || 0) / order.orderPrice)
+    : 0;
 
   return (
     <>
       <tr className={`group transition-all ${order.stopLoss ? 'bg-orange-50/20' : 'hover:bg-slate-50/50 dark:hover:bg-slate-800/40'}`}>
         <td className="px-6 py-5">
-          <div className="relative">
-            <input
-              type="text"
-              className="block w-full h-10 px-4 rounded-xl bg-slate-50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-800 text-xs font-black uppercase text-slate-900 dark:text-white focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all font-mono"
-              value={displayTicker}
-              placeholder="Ativo"
-              onChange={(e) => setDisplayTicker(e.target.value.toUpperCase())}
-            />
-            {displayTicker && (
-              <div className={`absolute right-3 top-4 h-2 w-2 rounded-full ${order.side === 'Compra' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]'} ${isQuoting ? 'animate-pulse' : ''}`}></div>
+          <div className="flex flex-col gap-1.5 min-w-[140px]">
+            <div className="relative">
+              <input
+                type="text"
+                className="block w-full h-10 px-4 rounded-xl bg-slate-50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-800 text-xs font-black uppercase text-slate-900 dark:text-white focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all font-mono"
+                value={displayTicker}
+                placeholder="Ativo"
+                onChange={(e) => setDisplayTicker(e.target.value.toUpperCase())}
+              />
+              {displayTicker && (
+                <div className={`absolute right-3 top-4 h-2 w-2 rounded-full ${order.side === 'Compra' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]'} ${isQuoting ? 'animate-pulse' : ''}`}></div>
+              )}
+            </div>
+            {order.assetName && (
+              <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest truncate max-w-[140px] px-1 animate-in fade-in slide-in-from-left-1">
+                {order.assetName}
+              </span>
             )}
           </div>
         </td>
@@ -96,9 +110,12 @@ const OrderRow: React.FC<OrderRowProps> = ({ order, onUpdate, onRemove }) => {
           </select>
         </td>
         <td className="px-6 py-5">
-          <div className="flex items-center justify-end gap-1 font-mono text-slate-500 dark:text-slate-400 text-xs font-bold">
-            <span className="opacity-50">R$</span>
-            <span>{order.lastPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+          <div className="flex flex-col items-end">
+            <div className="flex items-center gap-1 font-mono text-slate-500 dark:text-slate-400 text-xs font-bold">
+              <span className="opacity-50 text-[10px]">R$</span>
+              <span>{order.lastPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+            </div>
+            <span className="text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest">Cotação</span>
           </div>
         </td>
         <td className="px-6 py-5">
@@ -136,7 +153,7 @@ const OrderRow: React.FC<OrderRowProps> = ({ order, onUpdate, onRemove }) => {
         </td>
         <td className="px-6 py-5">
           <select
-            className="block w-full bg-transparent border-none text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest focus:ring-0 text-right cursor-pointer"
+            className="block w-full bg-slate-50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-800 rounded-xl px-3 py-2 text-[10px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest focus:ring-2 focus:ring-primary/20 transition-all"
             value={order.basis}
             onChange={(e) => onUpdate({ basis: e.target.value as OrderBasis })}
           >
@@ -145,23 +162,38 @@ const OrderRow: React.FC<OrderRowProps> = ({ order, onUpdate, onRemove }) => {
           </select>
         </td>
         <td className="px-6 py-5">
-          <div className="flex items-center justify-end bg-slate-50 dark:bg-slate-900/50 rounded-xl px-3 py-1.5 border border-slate-100 dark:border-slate-800 shadow-inner">
-            <input
-              type="number"
-              className="block w-24 bg-transparent border-none p-0 text-right font-mono text-sm font-black text-slate-800 dark:text-white focus:ring-0"
-              value={order.value || ''}
-              placeholder="0"
-              onChange={(e) => onUpdate({ value: parseFloat(e.target.value) || 0 })}
-            />
+          <div className="flex flex-col gap-1.5">
+            <div className={`flex items-center justify-end bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 shadow-sm focus-within:ring-4 focus-within:ring-primary/10 transition-all ${order.basis === 'Financeiro' ? 'bg-slate-50/50' : ''}`}>
+              <span className="text-[10px] font-black text-slate-400 mr-2">{order.basis === 'Financeiro' ? 'R$' : 'QTD'}</span>
+              <input
+                type="number"
+                className="block w-24 bg-transparent border-none p-0 text-right font-mono text-sm font-black text-slate-800 dark:text-white focus:ring-0"
+                value={order.value || ''}
+                placeholder="0"
+                onChange={(e) => onUpdate({ value: parseFloat(e.target.value) || 0 })}
+              />
+            </div>
           </div>
         </td>
         <td className="px-6 py-5">
           <div className="flex flex-col items-end">
-            <div className="flex items-center gap-1 font-mono text-sm font-black text-emerald-600 dark:text-primary">
-              <span className="text-[10px] opacity-70">R$</span>
-              <span>{estimatedFinance.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-            </div>
-            <span className="text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest">Total Estimado</span>
+            {order.basis === 'Quantidade' ? (
+              <>
+                <div className="flex items-center gap-1 font-mono text-sm font-black text-emerald-600 dark:text-primary">
+                  <span className="text-[10px] opacity-70">R$</span>
+                  <span>{estimatedFinance.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+                <span className="text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest">Total Estimado</span>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-1 font-mono text-sm font-black text-emerald-600 dark:text-primary">
+                  <span>{estimatedQty.toLocaleString('pt-BR')}</span>
+                  <span className="text-[10px] opacity-70 uppercase tracking-tighter ml-1">Papéis</span>
+                </div>
+                <span className="text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest">Qtd Estimada</span>
+              </>
+            )}
           </div>
         </td>
         <td className="px-6 py-5 text-center">
