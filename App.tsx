@@ -77,9 +77,19 @@ const App: React.FC = () => {
         const { data: { session: initialSession } } = await supabase.auth.getSession();
         if (!mounted) return;
 
-        setSession(initialSession);
         if (initialSession) {
-          await fetchProfile(initialSession.user);
+          setSession(initialSession);
+          // Set optimistic profile immediately to unlock UI
+          const user = initialSession.user;
+          setUserProfile({
+            id: user.id,
+            role: user.user_metadata?.role || 'usuario_rv',
+            full_name: user.user_metadata?.full_name || 'Usuário',
+            avatar_url: user.user_metadata?.avatar_url || null,
+            email: user.email
+          });
+          // Then fetch the real profile from DB in the background
+          fetchProfile(user);
         }
       } catch (err) {
         console.error('Initialization error:', err);
@@ -98,8 +108,16 @@ const App: React.FC = () => {
       setSession(currentSession);
 
       if (currentSession) {
-        // Only show loading if we really need to fetch a new profile
-        await fetchProfile(currentSession.user);
+        // Optimistic update on auth change too
+        const user = currentSession.user;
+        setUserProfile({
+          id: user.id,
+          role: user.user_metadata?.role || 'usuario_rv',
+          full_name: user.user_metadata?.full_name || 'Usuário',
+          avatar_url: user.user_metadata?.avatar_url || null,
+          email: user.email
+        });
+        fetchProfile(user);
       } else {
         setUserProfile(null);
       }
@@ -652,7 +670,7 @@ const App: React.FC = () => {
 
               <div className="mt-auto pt-6 px-1 flex flex-col gap-2">
                 <div className="text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-[0.2em] text-center mb-2">
-                  FinancePro v5.4.1
+                  FinancePro v5.4.2
                 </div>
               </div>
             </nav>

@@ -78,13 +78,19 @@ const ClientSearch: React.FC<ClientSearchProps> = ({
             console.log(`[ClientSearch] Searching: "${trimmedQuery}"`);
 
             try {
-                // Try simple name search first to rule out syntax issues with complex OR
-                let { data, error: sbError } = await supabase
+                // Add a simple timeout race to prevent hanging indefinitely
+                const searchPromise = supabase
                     .from('cadastro_clientes')
                     .select('*')
                     .or(`Cliente.ilike.%${trimmedQuery}%,Conta.ilike.%${trimmedQuery}%,"Cod Bolsa".ilike.%${trimmedQuery}%`)
                     .order('Cliente', { ascending: true })
                     .limit(50);
+
+                const timeoutPromise = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('Busca expirou (Timeout)')), 10000)
+                );
+
+                const { data, error: sbError } = await Promise.race([searchPromise, timeoutPromise]) as any;
 
                 if (sbError) {
                     console.error('[ClientSearch] Search error:', sbError);
