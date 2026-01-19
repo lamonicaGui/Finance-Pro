@@ -265,7 +265,13 @@ const OpenPositions: React.FC = () => {
                 if (searchAccount && csvAccount && csvAccount === searchAccount) return true;
 
                 // Match por nome (um contido no outro)
-                if (searchName && csvName && (searchName.includes(csvName) || csvName.includes(searchName))) return true;
+                // Match por nome (Palavras-chave)
+                // Se todas as palavras da busca estiverem no nome do CSV, consideramos match.
+                // Ex: "VILMA GASI" encontra "VILMA GIANNINI FORMENTI GASI"
+                if (searchName && csvName) {
+                    const searchWords = searchName.split(/\s+/).filter(w => w.length > 1);
+                    if (searchWords.length > 0 && searchWords.every(word => csvName.includes(word))) return true;
+                }
 
                 return false;
             });
