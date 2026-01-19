@@ -333,18 +333,13 @@ const PerformanceAnalysis: React.FC = () => {
         console.log("Iniciando processamento de dados:", data.length, "linhas");
 
         try {
-            // 2. Normalização com mapeamento de colunas ultra-robusto
-            const normalizedData: TradeRecord[] = data.map((item, idx) => {
+            // 1. Normalização com mapeamento de colunas ultra-robusto
+            const mappedData: TradeRecord[] = data.map((item, idx) => {
                 const itemKeys = Object.keys(item);
-                if (idx === 0) console.log("Primeira linha de dados brutos:", item);
                 const getRaw = (aliases: string[]) => {
                     const normalizedAliases = aliases.map(a => normalizeStr(a));
-
-                    // Prioridade 1: Match exato (normalizado)
                     const exactKey = itemKeys.find(ik => normalizedAliases.includes(normalizeStr(ik)));
                     if (exactKey !== undefined) return item[exactKey];
-
-                    // Prioridade 2: Match parcial (se a chave contém ou é contida pelo alias)
                     const softKey = itemKeys.find(ik => {
                         const nik = normalizeStr(ik);
                         return normalizedAliases.some(alias => {
@@ -381,13 +376,26 @@ const PerformanceAnalysis: React.FC = () => {
                     especialista: String(getRaw(['Especialista']) || ''),
                     conta: String(rawConta || 'N/A')
                 } as TradeRecord;
-            }).filter(item => {
+            });
+
+            // 2. Desduplicação de registros idênticos (Prevenção contra duplicidade no Banco/Importação)
+            const seen = new Set<string>();
+            const normalizedData = mappedData.filter(item => {
+                // Filtros básicos de validade
                 const p = normalizeStr(item.papel);
                 if (!p || p === 'papel' || p === 'ativo' || p === 'symbol') return false;
                 if (item.quantidade <= 0) return false;
-
                 const s = normalizeStr(item.status);
-                return s === 'executada' || s === 'executed' || !item.status || s === '' || s === 'undefined';
+                if (!(s === 'executada' || s === 'executed' || !item.status || s === '' || s === 'undefined')) return false;
+
+                // Chave de unicidade: Cliente + Papel + Data + Lado + Qtd + Preço + Conta
+                const uniqueKey = `${item.cliente}-${item.papel}-${item.data}-${item.cv}-${item.quantidade}-${item.precoMedio}-${item.conta}`;
+                if (seen.has(uniqueKey)) {
+                    console.warn(`[FIFO] Ignorando registro duplicado: ${uniqueKey}`);
+                    return false;
+                }
+                seen.add(uniqueKey);
+                return true;
             });
 
             console.log("Dados normalizados:", normalizedData.length, "registros válidos");
