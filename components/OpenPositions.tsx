@@ -100,13 +100,20 @@ const OpenPositions: React.FC = () => {
                 Papa.parse(text, {
                     header: true,
                     skipEmptyLines: true,
+                    delimitersToGuess: [';', ',', '\t'], // Prioridade para ponto-e-vírgula
                     complete: (results) => {
+                        console.log(`[CSV] PapaParse: ${results.data.length} linhas detectadas. Delimitador: "${results.meta.delimiter}"`);
                         if (results.data.length === 0) {
                             alert("O arquivo parece estar vazio.");
                             setIsImporting(false);
                         } else {
                             processImport(results.data);
                         }
+                    },
+                    error: (err) => {
+                        console.error("[CSV] Erro PapaParse:", err);
+                        alert("Erro ao ler o CSV.");
+                        setIsImporting(false);
                     }
                 });
             };
@@ -175,13 +182,30 @@ const OpenPositions: React.FC = () => {
                 return;
             }
 
-            // 1. Delete all
-            const { error: deleteError } = await supabase.from('open_positions').delete().neq('ativo', 'TRUNCATE_PLACEHOLDER');
-            if (deleteError) throw deleteError;
+            // 1. Limpar Base via RPC (Mais robusto que delete com neq)
+            console.log("[Import] Limpando base de dados...");
+            const { error: rpcError } = await supabase.rpc('truncate_open_positions');
 
-            // 2. Insert all
-            const { error: insertError } = await supabase.from('open_positions').insert(normalized);
-            if (insertError) throw insertError;
+            if (rpcError) {
+                console.warn("[Import] Falha no RPC truncate_open_positions, tentando fallback delete:", rpcError);
+                // Fallback para o método antigo caso o RPC não esteja criado
+                const { error: deleteError } = await supabase.from('open_positions').delete().neq('ativo', 'TRUNCATE_PLACEHOLDER');
+                if (deleteError) throw deleteError;
+            }
+
+            // 2. Inserir Novos Dados
+            console.log(`[Import] Inserindo ${normalized.length} registros...`);
+            // Tentamos inserir com os dois formatos de chave (qtd e Qtd) para garantir compatibilidade com o schema
+            const finalData = normalized.map(item => ({
+                ...item,
+                Qtd: item.qtd // Duplica para garantir que o Supabase encontre a coluna correta
+            }));
+
+            const { error: insertError } = await supabase.from('open_positions').insert(finalData);
+            if (insertError) {
+                console.error("[Import] Erro na inserção:", insertError);
+                throw insertError;
+            }
 
             alert("Base de posições atualizada com sucesso!");
             if (selectedClient) {
