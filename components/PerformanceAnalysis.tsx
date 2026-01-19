@@ -74,21 +74,38 @@ const parseNum = (val: any): number => {
 const parseFullDate = (dStr: string) => {
     if (!dStr) return 0;
     try {
-        const parts = String(dStr).trim().split(' ');
-        const dateParts = parts[0].split('/');
-        if (dateParts.length < 3) return 0;
+        const cleanStr = String(dStr).trim();
 
-        const day = parseInt(dateParts[0]);
-        const month = parseInt(dateParts[1]) - 1;
-        const yr = dateParts[2];
-        const year = yr.length === 2 ? parseInt(`20${yr}`) : parseInt(yr);
+        // Formato ISO: 2025-01-19...
+        if (cleanStr.includes('-')) {
+            const date = new Date(cleanStr);
+            if (!isNaN(date.getTime())) return date.getTime();
+        }
 
-        const timeParts = parts[1] ? parts[1].split(':') : ['00', '00'];
-        const hour = parseInt(timeParts[0] || '0');
-        const min = parseInt(timeParts[1] || '0');
+        // Formato Brasileiro: DD/MM/YYYY...
+        if (cleanStr.includes('/')) {
+            const parts = cleanStr.split(' ');
+            const dateParts = parts[0].split('/');
+            if (dateParts.length >= 3) {
+                const day = parseInt(dateParts[0]);
+                const month = parseInt(dateParts[1]) - 1;
+                const yr = dateParts[2];
+                const year = yr.length === 2 ? parseInt(`20${yr}`) : parseInt(yr);
 
-        return new Date(year, month, day, hour, min).getTime();
+                const timeParts = (parts[1] || '00:00:00').split(':');
+                const hour = parseInt(timeParts[0] || '0');
+                const min = parseInt(timeParts[1] || '0');
+                const sec = parseInt(timeParts[2] || '0');
+
+                return new Date(year, month, day, hour, min, sec).getTime();
+            }
+        }
+
+        // Fallback para Date nativo se nada acima funcionou
+        const fallback = new Date(cleanStr);
+        return isNaN(fallback.getTime()) ? 0 : fallback.getTime();
     } catch (e) {
+        console.error("[DEBUG] Error parsing date:", dStr, e);
         return 0;
     }
 };
@@ -208,12 +225,12 @@ const PerformanceAnalysis: React.FC = () => {
             if (selectedTicker) {
                 query = query.eq('papel', selectedTicker);
             }
-            if (startDate) {
-                query = query.gte('data', startDate);
-            }
             if (endDate) {
                 query = query.lte('data', endDate);
             }
+            // Importante: Não filtramos por startDate aqui, pois precisamos de todo o histórico 
+            // para casar as operações (FIFO) corretamente. O filtro de startDate será aplicado 
+            // no resultado final das operações encerradas.
 
             const { data, error } = await query;
             console.log(`[PerformanceAnalysis] Filters:`, { selectedClient, selectedTicker, startDate, endDate });
@@ -375,8 +392,14 @@ const PerformanceAnalysis: React.FC = () => {
 
             console.log("Dados normalizados:", normalizedData.length, "registros válidos");
 
-            // Calculate Total Volume Operated (sum of all executed orders)
-            const totalVolumeOperated = normalizedData.reduce((sum, r) => sum + (r.volume || (r.quantidade * r.precoMedio)), 0);
+            // Calculate Total Volume Operated (sum of all executed orders WITHIN THE FILTERED PERIOD)
+            const volumeData = normalizedData.filter(r => {
+                const t = parseFullDate(r.dataHora);
+                const start = startDate ? parseFullDate(startDate) : 0;
+                const end = endDate ? parseFullDate(endDate) : Infinity;
+                return t >= start && t <= (end + 86400000);
+            });
+            const totalVolumeOperated = volumeData.reduce((sum, r) => sum + (r.volume || (r.quantidade * r.precoMedio)), 0);
 
             // 4. Group by Account + Ticker
             const groups: { [key: string]: TradeRecord[] } = {};
@@ -388,11 +411,17 @@ const PerformanceAnalysis: React.FC = () => {
 
             const allOperations: Operation[] = [];
 
-            // 5. FIFO Logic
+            // 5. Lógica FIFO Robusta
             Object.keys(groups).forEach(key => {
-                const records = groups[key].sort((a, b) => parseFullDate(a.dataHora) - parseFullDate(b.dataHora));
-                const buys: { qty: number, price: number, date: string, dataHora: string }[] = [];
-                const sells: { qty: number, price: number, date: string, dataHora: string }[] = [];
+                // Ordenar por dataHora para garantir a cronologia correta
+                const records = groups[key].sort((a, b) => {
+                    const timeA = parseFullDate(a.dataHora);
+                    const timeB = parseFullDate(b.dataHora);
+                    return timeA - timeB;
+                });
+
+                const buys: { qty: number, price: number, date: string, dataHora: string, ticker: string }[] = [];
+                const sells: { qty: number, price: number, date: string, dataHora: string, ticker: string }[] = [];
 
                 records.forEach(r => {
                     const qty = r.quantidade;
@@ -400,11 +429,14 @@ const PerformanceAnalysis: React.FC = () => {
                     const date = r.data;
                     const dataHora = r.dataHora;
 
+                    // Se for COMPRA
                     if (r.cv === 'C') {
                         let remainingQty = qty;
+                        // Tentar encerrar vendas (Shorts) existentes
                         while (remainingQty > 0 && sells.length > 0) {
                             const sell = sells[0];
                             const matchQty = Math.min(remainingQty, sell.qty);
+
                             const resultBrRL = (sell.price - price) * matchQty;
                             const resultPercent = price === 0 ? 0 : ((sell.price / price) - 1) * 100;
 
@@ -429,12 +461,17 @@ const PerformanceAnalysis: React.FC = () => {
                             sell.qty -= matchQty;
                             if (sell.qty <= 0) sells.shift();
                         }
-                        if (remainingQty > 0) buys.push({ qty: remainingQty, price, date, dataHora });
-                    } else {
+                        // Se sobrou compra, é uma nova posição Long a ser encerrada futuramente
+                        if (remainingQty > 0) buys.push({ qty: remainingQty, price, date, dataHora, ticker: r.papel });
+                    }
+                    // Se for VENDA
+                    else {
                         let remainingQty = qty;
+                        // Tentar encerrar compras (Longs) existentes
                         while (remainingQty > 0 && buys.length > 0) {
                             const buy = buys[0];
                             const matchQty = Math.min(remainingQty, buy.qty);
+
                             const resultBrRL = (price - buy.price) * matchQty;
                             const resultPercent = buy.price === 0 ? 0 : ((price / buy.price) - 1) * 100;
 
@@ -459,12 +496,28 @@ const PerformanceAnalysis: React.FC = () => {
                             buy.qty -= matchQty;
                             if (buy.qty <= 0) buys.shift();
                         }
-                        if (remainingQty > 0) sells.push({ qty: remainingQty, price, date, dataHora });
+                        // Se sobrou venda, é uma nova posição Short a ser encerrada futuramente
+                        if (remainingQty > 0) sells.push({ qty: remainingQty, price, date, dataHora, ticker: r.papel });
                     }
                 });
             });
 
-            const sortedOps = allOperations.sort((a, b) => parseFullDate(a.exitDate) - parseFullDate(b.exitDate));
+            console.log(`[FIFO] Operações geradas: ${allOperations.length}`);
+            if (allOperations.length > 0) {
+                console.log(`[FIFO] Exemplo de operação:`, allOperations[0]);
+            }
+
+            // 6. Filtrar por Período Selecionado (somente operações ENCERRADAS no período)
+            const filteredByDate = allOperations.filter(op => {
+                const exitTime = parseFullDate(op.exitDate);
+                const startLimit = startDate ? parseFullDate(startDate) : 0;
+                const endLimit = endDate ? parseFullDate(endDate) : Infinity;
+
+                // Se a operação encerrou dentro do range
+                return exitTime >= startLimit && exitTime <= (endLimit + 86400000); // +1 dia p/ cobrir o dia final
+            });
+
+            const sortedOps = filteredByDate.sort((a, b) => parseFullDate(a.exitDate) - parseFullDate(b.exitDate));
             setOperations(sortedOps);
 
             // 7. Calculate Summary KPIs
