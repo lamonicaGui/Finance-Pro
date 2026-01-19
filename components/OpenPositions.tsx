@@ -91,12 +91,21 @@ const OpenPositions: React.FC = () => {
         if (file.name.endsWith('.csv')) {
             reader.onload = (event) => {
                 const arrayBuffer = event.target?.result as ArrayBuffer;
+
+                // Tenta UTF-8 primeiro
                 const utf8Decoder = new TextDecoder('utf-8');
                 let text = utf8Decoder.decode(new Uint8Array(arrayBuffer));
-                if (text.includes('') || !text.includes(';')) {
+
+                // Heurística de codificação: Se contém caracteres de substituição ou não contém delimitadores comuns, tenta Latin1
+                const hasReplacementChar = text.includes('\ufffd');
+                const hasDelimiters = text.includes(';') || text.includes(',') || text.includes('\t');
+
+                if (hasReplacementChar || !hasDelimiters) {
+                    console.log("[Import] Detectada falha na codificação UTF-8 ou falta de delimitadores. Tentando ISO-8859-1...");
                     const latin1Decoder = new TextDecoder('iso-8859-1');
                     text = latin1Decoder.decode(new Uint8Array(arrayBuffer));
                 }
+
                 Papa.parse(text, {
                     header: true,
                     skipEmptyLines: true,
@@ -224,33 +233,48 @@ const OpenPositions: React.FC = () => {
         setHasSearched(true);
         setSelectedClient(client);
         try {
-            // Limpeza básica dos parâmetros de busca
-            const searchName = client.Cliente.trim();
-            const searchAccount = client.Conta ? String(client.Conta).trim() : '';
+            // Normalização e extração de dados do cliente para busca
+            const normalize = (s: string) => s?.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim() || "";
 
-            console.log(`[DEBUG] Buscando posições para: Nome="${searchName}", Conta="${searchAccount}"`);
+            const searchName = normalize(client.Cliente);
+            // Pega apenas os números da conta para busca mais flexível
+            const searchAccount = client.Conta ? String(client.Conta).replace(/\D/g, '') : '';
 
-            // Construção da query OR de forma mais segura
+            console.log(`[OpenPositions] Buscando: Nome="${searchName}", Conta="${searchAccount}"`);
+
+            // 1. Tentar busca exata por conta
             let query = supabase.from('open_positions').select('*');
 
             if (searchAccount) {
-                // Usamos aspas duplas e ILIKE para ambos para ser o mais flexível possível
-                query = query.or(`cliente_nome.ilike."%${searchName}%",conta.ilike."%${searchAccount}%"`);
+                // Busca por conta (contendo os números) OU nome parcial
+                query = query.or(`conta.ilike.%${searchAccount}%,cliente_nome.ilike.%${searchName.split(' ')[0]}%`);
             } else {
-                query = query.ilike('cliente_nome', `%${searchName}%`);
+                query = query.ilike('cliente_nome', `%${searchName.split(' ')[0]}%`);
             }
 
             const { data, error } = await query.order('ativo', { ascending: true });
 
-            if (error) {
-                console.error("[DEBUG] Erro Supabase:", error);
-                throw error;
-            }
+            if (error) throw error;
 
-            setPositions(data || []);
-            console.log(`[DEBUG] Finalizado: ${data?.length || 0} posições.`);
-            if (data && data.length > 0) {
-                fetchQuotes(data.map(p => p.ativo));
+            // 2. Filtro Local (Mais refinado para evitar falsos positivos do ILIKE)
+            const filteredData = (data || []).filter(item => {
+                const csvName = normalize(item.cliente_nome);
+                const csvAccount = String(item.conta).replace(/\D/g, '');
+
+                // Match por conta exata (números)
+                if (searchAccount && csvAccount && csvAccount === searchAccount) return true;
+
+                // Match por nome (um contido no outro)
+                if (searchName && csvName && (searchName.includes(csvName) || csvName.includes(searchName))) return true;
+
+                return false;
+            });
+
+            setPositions(filteredData);
+            console.log(`[OpenPositions] Encontrados ${filteredData.length} registros para o cliente.`);
+
+            if (filteredData.length > 0) {
+                fetchQuotes(filteredData.map(p => p.ativo));
             } else {
                 setQuotes({});
             }
