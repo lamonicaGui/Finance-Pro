@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { SwingTradeAsset, SwingTradeStatus } from '../types.ts';
+import { supabase } from '../services/supabase';
 import { parseSwingTradePdf } from '../utils/swingTradeParser.ts';
 import SwingTradeOrderModal from './SwingTradeOrderModal.tsx';
 
@@ -9,10 +10,7 @@ interface SwingTradeGeneratorProps {
 }
 
 const SwingTradeGenerator: React.FC<SwingTradeGeneratorProps> = ({ userEmail }) => {
-    const [assets, setAssets] = useState<SwingTradeAsset[]>(() => {
-        const saved = localStorage.getItem('swing_trade_assets');
-        return saved ? JSON.parse(saved) : [];
-    });
+    const [assets, setAssets] = useState<SwingTradeAsset[]>([]);
     const [isParsing, setIsParsing] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
     const [isDragActive, setIsDragActive] = useState(false);
@@ -20,10 +18,18 @@ const SwingTradeGenerator: React.FC<SwingTradeGeneratorProps> = ({ userEmail }) 
     const [showDebug, setShowDebug] = useState(false);
     const [orderAssets, setOrderAssets] = useState<SwingTradeAsset[]>([]);
 
-    // Persistência
+    // Load from Supabase on mount
     useEffect(() => {
-        localStorage.setItem('swing_trade_assets', JSON.stringify(assets));
-    }, [assets]);
+        const fetchAssets = async () => {
+            const { data, error } = await supabase
+                .from('swing_trade_menu')
+                .select('*')
+                .order('created_at', { ascending: true });
+            if (data) setAssets(data);
+            if (error) console.error("Error fetching swing trade menu:", error);
+        };
+        fetchAssets();
+    }, []);
 
     // Sincronização de Preços (Yahoo Finance Proxy)
     const fetchPrices = async () => {
@@ -56,6 +62,13 @@ const SwingTradeGenerator: React.FC<SwingTradeGeneratorProps> = ({ userEmail }) 
             }));
 
             setAssets(updatedAssets);
+
+            // Update database with new prices (async, don't block UI)
+            updatedAssets.forEach(async (a) => {
+                if (a.currentPrice) {
+                    await supabase.from('swing_trade_menu').update({ currentPrice: a.currentPrice }).eq('id', a.id);
+                }
+            });
         } catch (err) {
             console.error("Erro geral na sincronização:", err);
         } finally {
@@ -73,7 +86,16 @@ const SwingTradeGenerator: React.FC<SwingTradeGeneratorProps> = ({ userEmail }) 
             if (result.assets.length === 0) {
                 alert("Nenhuma recomendação encontrada.");
             } else {
-                setAssets(result.assets.map(a => ({ ...a, selected: false })));
+                const newAssets = result.assets.map(a => ({ ...a, selected: false }));
+
+                // Persistence in Supabase
+                const { error: deleteError } = await supabase.from('swing_trade_menu').delete().neq('id', 'CLEAR_ALL');
+                if (deleteError) throw deleteError;
+
+                const { error: insertError } = await supabase.from('swing_trade_menu').insert(newAssets);
+                if (insertError) throw insertError;
+
+                setAssets(newAssets);
             }
         } catch (err: any) {
             alert(`Falha ao ler o PDF: ${err.message || 'Erro desconhecido'}`);
@@ -88,8 +110,31 @@ const SwingTradeGenerator: React.FC<SwingTradeGeneratorProps> = ({ userEmail }) 
         }
     };
 
-    const toggleSelect = (id: string) => {
-        setAssets(prev => prev.map(a => a.id === id ? { ...a, selected: !a.selected } : a));
+    const toggleSelect = async (id: string) => {
+        const asset = assets.find(a => a.id === id);
+        if (!asset) return;
+
+        const nextSelected = !asset.selected;
+
+        // Optimistic
+        setAssets(prev => prev.map(a => a.id === id ? { ...a, selected: nextSelected } : a));
+
+        const { error } = await supabase.from('swing_trade_menu').update({ selected: nextSelected }).eq('id', id);
+        if (error) {
+            console.error("Error toggling:", error);
+            setAssets(prev => prev.map(a => a.id === id ? { ...a, selected: !nextSelected } : a));
+        }
+    };
+
+    const deleteAsset = async (id: string) => {
+        setAssets(prev => prev.filter(a => a.id !== id));
+        await supabase.from('swing_trade_menu').delete().eq('id', id);
+    };
+
+    const clearAll = async () => {
+        if (!confirm("Deseja limpar todo o cardápio Swing Trade?")) return;
+        setAssets([]);
+        await supabase.from('swing_trade_menu').delete().neq('id', 'CLEAR_ALL');
     };
 
     const calculateDynamicPotential = (asset: SwingTradeAsset) => {
@@ -194,7 +239,7 @@ const SwingTradeGenerator: React.FC<SwingTradeGeneratorProps> = ({ userEmail }) 
                             {isSyncing ? 'Sincronizando...' : 'Atualizar Cotações'}
                         </button>
                     )}
-                    <button onClick={() => { setAssets([]); setRawText(null); }} className="bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 px-8 py-4 rounded-[1.25rem] text-[11px] font-black text-slate-400 hover:text-red-500 transition-all uppercase flex items-center gap-3">
+                    <button onClick={clearAll} className="bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 px-8 py-4 rounded-[1.25rem] text-[11px] font-black text-slate-400 hover:text-red-500 transition-all uppercase flex items-center gap-3">
                         <span className="material-symbols-outlined text-lg">delete_sweep</span>
                         Limpar
                     </button>

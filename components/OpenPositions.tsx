@@ -2,6 +2,8 @@
 import React, { useState, useMemo } from 'react';
 import { supabase } from '../services/supabase';
 import ClientSearch from './ClientSearch';
+import Papa from 'papaparse';
+import * as XLSX from 'xlsx';
 
 interface Client {
     "Cod Bolsa": string;
@@ -34,21 +36,195 @@ const OpenPositions: React.FC = () => {
     const [syncing, setSyncing] = useState(false);
     const [selectedClient, setSelectedClient] = useState<Client | null>(null);
     const [hasSearched, setHasSearched] = useState(false);
+    const [isImporting, setIsImporting] = useState(false);
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+    const normalizeStr = (s: string) =>
+        String(s || '').toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^a-z0-9]/g, "");
+
+    const parseNum = (val: any): number => {
+        if (typeof val === 'number') return val;
+        if (val === undefined || val === null || val === '') return 0;
+
+        let clean = String(val).replace('R$', '').replace(/\s/g, '').trim();
+
+        // Se o valor já está no formato americano (123.45) e não tem vírgulas, é um decimal direto
+        const hasComma = clean.includes(',');
+        const hasDot = clean.includes('.');
+
+        if (!hasComma && hasDot) {
+            // Pode ser 1.000 (mil) ou 1.23 (decimal)
+            // Sinacor costuma usar vírgula para decimal. Se tem ponto e não tem vírgula, e tem 3 casas após o ponto, pode ser milhar.
+            // Mas se for 1.2, 1.23, é decimal. 
+            // Vamos assumir que se o DB salvou com ponto, é decimal.
+            return parseFloat(clean) || 0;
+        }
+
+        if (hasComma && hasDot) {
+            const lastComma = clean.lastIndexOf(',');
+            const lastDot = clean.lastIndexOf('.');
+            if (lastComma > lastDot) {
+                // Formato brasileiro: 1.234,56
+                clean = clean.replace(/\./g, '').replace(',', '.');
+            } else {
+                // Formato americano: 1,234.56
+                clean = clean.replace(/,/g, '');
+            }
+        } else if (hasComma) {
+            clean = clean.replace(',', '.');
+        }
+
+        const parsed = parseFloat(clean);
+        return isNaN(parsed) ? 0 : parsed;
+    };
+
+    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsImporting(true);
+        const reader = new FileReader();
+
+        if (file.name.endsWith('.csv')) {
+            reader.onload = (event) => {
+                const arrayBuffer = event.target?.result as ArrayBuffer;
+                const utf8Decoder = new TextDecoder('utf-8');
+                let text = utf8Decoder.decode(new Uint8Array(arrayBuffer));
+                if (text.includes('') || !text.includes(';')) {
+                    const latin1Decoder = new TextDecoder('iso-8859-1');
+                    text = latin1Decoder.decode(new Uint8Array(arrayBuffer));
+                }
+                Papa.parse(text, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: (results) => {
+                        if (results.data.length === 0) {
+                            alert("O arquivo parece estar vazio.");
+                            setIsImporting(false);
+                        } else {
+                            processImport(results.data);
+                        }
+                    }
+                });
+            };
+            reader.readAsArrayBuffer(file);
+        } else {
+            reader.onload = (event) => {
+                try {
+                    const data = new Uint8Array(event.target?.result as ArrayBuffer);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+                    processImport(jsonData);
+                } catch (err) {
+                    console.error("XLSX error:", err);
+                    alert("Erro ao ler o arquivo Excel.");
+                    setIsImporting(false);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+    };
+
+    const processImport = async (rawData: any[]) => {
+        try {
+            const normalized = rawData.map(item => {
+                const itemKeys = Object.keys(item);
+                const getRaw = (aliases: string[]) => {
+                    const normalizedAliases = aliases.map(a => normalizeStr(a));
+                    const exactKey = itemKeys.find(ik => normalizedAliases.includes(normalizeStr(ik)));
+                    if (exactKey !== undefined) return item[exactKey];
+                    const softKey = itemKeys.find(ik => {
+                        const nik = normalizeStr(ik);
+                        return normalizedAliases.some(alias => nik.includes(alias) || alias.includes(nik));
+                    });
+                    return softKey !== undefined ? item[softKey] : undefined;
+                };
+
+                const ativo = String(getRaw(['ativo', 'papel', 'ticker', 'symbol']) || '').trim().toUpperCase();
+                const cliente = String(getRaw(['cliente', 'nome', 'client']) || '').trim();
+                let conta = String(getRaw(['conta', 'account', 'cta']) || '').trim();
+
+                // Limpeza de conta (remove .0 final vindo de Excel)
+                if (conta.endsWith('.0')) conta = conta.substring(0, conta.length - 2);
+
+                const qtd = parseNum(getRaw(['qtd', 'quantidade', 'quantity', 'volume_qtd']));
+                const pm = parseNum(getRaw(['preco_medio', 'pm', 'price', 'avg_price', 'prc_medio']));
+
+                return {
+                    ativo,
+                    cliente_nome: cliente,
+                    conta: conta,
+                    qtd: qtd,
+                    preco_medio: pm
+                };
+            }).filter(p => p.ativo && p.qtd !== 0);
+
+            if (normalized.length === 0) {
+                alert("Nenhum dado válido encontrado no arquivo.");
+                setIsImporting(false);
+                return;
+            }
+
+            if (!confirm(`Isso irá apagar TODAS as posições atuais e inserir ${normalized.length} novas posições. Deseja continuar?`)) {
+                setIsImporting(false);
+                return;
+            }
+
+            // 1. Delete all
+            const { error: deleteError } = await supabase.from('open_positions').delete().neq('ativo', 'TRUNCATE_PLACEHOLDER');
+            if (deleteError) throw deleteError;
+
+            // 2. Insert all
+            const { error: insertError } = await supabase.from('open_positions').insert(normalized);
+            if (insertError) throw insertError;
+
+            alert("Base de posições atualizada com sucesso!");
+            if (selectedClient) {
+                fetchClientPositions(selectedClient);
+            }
+        } catch (err: any) {
+            console.error("Import error:", err);
+            alert(`Erro ao importar dados: ${err.message}`);
+        } finally {
+            setIsImporting(false);
+        }
+    };
 
     const fetchClientPositions = async (client: Client) => {
         setLoading(true);
         setHasSearched(true);
         setSelectedClient(client);
         try {
-            // Search by name and account to be precise if possible
-            const { data, error } = await supabase
-                .from('open_positions')
-                .select('*')
-                .or(`cliente_nome.ilike.%${client.Cliente}%,conta.eq.${client.Conta}`)
-                .order('ativo', { ascending: true });
+            // Limpeza básica dos parâmetros de busca
+            const searchName = client.Cliente.trim();
+            const searchAccount = client.Conta ? String(client.Conta).trim() : '';
 
-            if (error) throw error;
+            console.log(`[DEBUG] Buscando posições para: Nome="${searchName}", Conta="${searchAccount}"`);
+
+            // Construção da query OR de forma mais segura
+            let query = supabase.from('open_positions').select('*');
+
+            if (searchAccount) {
+                // Usamos aspas duplas e ILIKE para ambos para ser o mais flexível possível
+                query = query.or(`cliente_nome.ilike."%${searchName}%",conta.ilike."%${searchAccount}%"`);
+            } else {
+                query = query.ilike('cliente_nome', `%${searchName}%`);
+            }
+
+            const { data, error } = await query.order('ativo', { ascending: true });
+
+            if (error) {
+                console.error("[DEBUG] Erro Supabase:", error);
+                throw error;
+            }
+
             setPositions(data || []);
+            console.log(`[DEBUG] Finalizado: ${data?.length || 0} posições.`);
             if (data && data.length > 0) {
                 fetchQuotes(data.map(p => p.ativo));
             } else {
@@ -61,34 +237,66 @@ const OpenPositions: React.FC = () => {
         }
     };
 
+    const fetchAllPositions = async () => {
+        setLoading(true);
+        setHasSearched(true);
+        setSelectedClient(null);
+        try {
+            console.log(`[DEBUG] Buscando TODAS as posições da tabela...`);
+            const { data, error } = await supabase
+                .from('open_positions')
+                .select('*')
+                .order('cliente_nome', { ascending: true })
+                .order('ativo', { ascending: true });
+
+            if (error) throw error;
+            setPositions(data || []);
+            if (data && data.length > 0) {
+                fetchQuotes(data.map(p => p.ativo));
+            }
+        } catch (err) {
+            console.error('Erro ao buscar todas as posições:', err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const fetchQuotes = async (tickers: string[]) => {
         setSyncing(true);
         const uniqueTickers = Array.from(new Set(tickers));
         const newQuotes: Record<string, QuoteData> = {};
 
         try {
+            const ts = Date.now();
             for (let i = 0; i < uniqueTickers.length; i += 5) {
                 const chunk = uniqueTickers.slice(i, i + 5);
                 await Promise.all(chunk.map(async (ticker) => {
                     try {
-                        const yahooTicker = ticker.endsWith('.SA') ? ticker : `${ticker}.SA`;
-                        const res = await fetch(`/api/yahoo/v8/finance/chart/${yahooTicker}?interval=1d&range=1d`);
-                        if (res.ok) {
-                            const data = await res.json();
-                            const result = data.chart?.result?.[0];
-                            const price = result?.meta?.regularMarketPrice;
-                            const prevClose = result?.meta?.chartPreviousClose;
+                        const cleanTicker = ticker.trim();
+                        const yahooTicker = cleanTicker.endsWith('.SA') ? cleanTicker : `${cleanTicker}.SA`;
+                        const res = await fetch(`/api/yahoo/v8/finance/chart/${encodeURIComponent(yahooTicker)}?interval=1d&range=1d&_=${ts}`);
 
-                            if (price) {
-                                newQuotes[ticker] = {
-                                    price: price,
-                                    change: price - prevClose,
-                                    changePercent: prevClose ? ((price - prevClose) / prevClose) * 100 : 0
-                                };
-                            }
+                        if (!res.ok) {
+                            console.warn(`Erro HTTP para ${cleanTicker}: ${res.status}`);
+                            return;
+                        }
+
+                        const data = await res.json();
+                        const result = data.chart?.result?.[0];
+                        const price = result?.meta?.regularMarketPrice || result?.meta?.chartPreviousClose;
+                        const prevClose = result?.meta?.chartPreviousClose;
+
+                        console.log(`[DEBUG] OpenPositions quote for ${cleanTicker}:`, { price, prevClose });
+
+                        if (price !== undefined && price !== null) {
+                            newQuotes[ticker] = {
+                                price: price,
+                                change: price - (prevClose || price),
+                                changePercent: prevClose ? ((price - prevClose) / prevClose) * 100 : 0
+                            };
                         }
                     } catch (e) {
-                        console.warn(`Erro ao buscar cotação para ${ticker}:`, e);
+                        console.error(`Erro ao buscar cotação para ${ticker}:`, e);
                     }
                 }));
             }
@@ -100,22 +308,13 @@ const OpenPositions: React.FC = () => {
         }
     };
 
-    const parseBRL = (val: any): number => {
-        if (typeof val === 'number') return val;
-        if (!val || typeof val !== 'string') return 0;
-        const clean = val.replace('R$', '')
-            .replace(/\s/g, '')
-            .replace(/\./g, '')
-            .replace(',', '.');
-        return parseFloat(clean) || 0;
-    };
 
     const totals = useMemo(() => {
         return positions.reduce((acc, pos) => {
             const quote = quotes[pos.ativo];
             const currentPrice = quote?.price || 0;
-            const q = parseBRL(pos.qtd || pos.Qtd);
-            const pm = parseBRL(pos.preco_medio);
+            const q = parseNum(pos.qtd || pos.Qtd);
+            const pm = parseNum(pos.preco_medio);
 
             const costTotal = q * pm;
             const currentTotal = q * currentPrice;
@@ -146,6 +345,39 @@ const OpenPositions: React.FC = () => {
                         placeholder="Pesquisar por Nome, Cod Bolsa ou Conta..."
                         className="shadow-2xl rounded-[2rem]"
                     />
+                </div>
+
+                <div className="flex flex-col items-center gap-4 mt-6">
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileUpload}
+                        accept=".csv,.xlsx,.xls"
+                        className="hidden"
+                    />
+                    <button
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isImporting}
+                        className="flex items-center gap-3 px-8 py-4 bg-white dark:bg-slate-800 border-2 border-primary/20 hover:border-primary text-slate-600 dark:text-slate-300 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl transition-all active:scale-95"
+                    >
+                        {isImporting ? (
+                            <span className="material-symbols-outlined animate-spin">progress_activity</span>
+                        ) : (
+                            <span className="material-symbols-outlined">upload_file</span>
+                        )}
+                        {isImporting ? 'Processando...' : 'Importar Novas Posições (CSV)'}
+                    </button>
+                    <button
+                        onClick={fetchAllPositions}
+                        disabled={loading}
+                        className="flex items-center gap-3 px-8 py-4 bg-primary text-[#102218] rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl transition-all active:scale-95"
+                    >
+                        <span className="material-symbols-outlined">database</span>
+                        Ver Todas as Posições (Geral)
+                    </button>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter italic">
+                        * Clique acima para listar posições de todos os clientes no banco.
+                    </p>
                 </div>
 
                 <div className="grid grid-cols-3 gap-4 w-full max-w-lg mt-4 opacity-50 grayscale pointer-events-none">
@@ -188,6 +420,28 @@ const OpenPositions: React.FC = () => {
                     </div>
                 </div>
                 <div className="flex gap-2 min-w-[350px]">
+                    <div className="flex items-center mr-2">
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={handleFileUpload}
+                            accept=".csv,.xlsx,.xls"
+                            className="hidden"
+                        />
+                        <button
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={isImporting}
+                            className="h-12 bg-primary/10 hover:bg-primary/20 text-primary px-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 border border-primary/20"
+                            title="Substituir toda a base"
+                        >
+                            {isImporting ? (
+                                <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span>
+                            ) : (
+                                <span className="material-symbols-outlined text-sm">upload</span>
+                            )}
+                            Importar
+                        </button>
+                    </div>
                     <div className="flex-1">
                         <ClientSearch
                             onSelect={(client) => fetchClientPositions(client)}
@@ -269,8 +523,8 @@ const OpenPositions: React.FC = () => {
                             {positions.map((pos) => {
                                 const quote = quotes[pos.ativo];
                                 const currentPrice = quote?.price || 0;
-                                const q = parseBRL(pos.qtd || pos.Qtd);
-                                const pm = parseBRL(pos.preco_medio);
+                                const q = parseNum(pos.qtd || pos.Qtd);
+                                const pm = parseNum(pos.preco_medio);
 
                                 const costTotal = q * pm;
                                 const currentTotal = q * currentPrice;

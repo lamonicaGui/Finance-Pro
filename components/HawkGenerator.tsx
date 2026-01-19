@@ -1,6 +1,7 @@
 
 import React, { useState, useRef } from 'react';
 import { HawkAsset, HawkTerm, HawkAssetType } from '../types.ts';
+import { supabase } from '../services/supabase';
 import HawkCardapioPreview from './HawkCardapioPreview.tsx';
 import HawkImportModal from './HawkImportModal.tsx';
 import HawkLaminaPreview from './HawkLaminaPreview.tsx';
@@ -9,11 +10,7 @@ import HawkOrderModal from './HawkOrderModal.tsx';
 import { parsePdf } from '../utils/pdfParser';
 
 const HawkGenerator: React.FC = () => {
-  const [assets, setAssets] = useState<HawkAsset[]>(() => {
-    // Carrega do localStorage na inicialização
-    const saved = localStorage.getItem('hawk_assets');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [assets, setAssets] = useState<HawkAsset[]>([]);
   const [importedRaw, setImportedRaw] = useState<HawkAsset[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processProgress, setProcessProgress] = useState(0);
@@ -23,10 +20,18 @@ const HawkGenerator: React.FC = () => {
   const [selectedAssetForLamina, setSelectedAssetForLamina] = useState<HawkAsset | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Persiste assets sempre que mudar
+  // Fetch from Supabase on mount
   React.useEffect(() => {
-    localStorage.setItem('hawk_assets', JSON.stringify(assets));
-  }, [assets]);
+    const fetchAssets = async () => {
+      const { data, error } = await supabase
+        .from('hawk_menu')
+        .select('*')
+        .order('created_at', { ascending: true });
+      if (data) setAssets(data);
+      if (error) console.error("Error fetching hawk menu:", error);
+    };
+    fetchAssets();
+  }, []);
 
   const today = new Date();
   const validDate = today.toLocaleDateString('pt-BR');
@@ -76,10 +81,64 @@ const HawkGenerator: React.FC = () => {
     }
   };
 
-  const handleConfirmImport = (selected: HawkAsset[]) => {
-    // Substitui a lista atual pelos novos importados (conforme solicitado: "manter até novos serem importados")
-    setAssets(selected);
-    setShowImportModal(false);
+  const handleConfirmImport = async (selected: HawkAsset[]) => {
+    setIsProcessing(true);
+    try {
+      // 1. Clear current menu
+      const { error: deleteError } = await supabase.from('hawk_menu').delete().neq('id', 'CLEAR_ALL');
+      if (deleteError) throw deleteError;
+
+      // 2. Insert new assets
+      if (selected.length > 0) {
+        // Ensure properties match DB schema
+        const dbAssets = selected.map(({ selected: _, ...rest }) => ({
+          ...rest,
+          selected: false // Default to unselected on new import
+        }));
+        const { error: insertError } = await supabase.from('hawk_menu').insert(dbAssets);
+        if (insertError) throw insertError;
+      }
+
+      setAssets(selected.map(a => ({ ...a, selected: false })));
+      setShowImportModal(false);
+    } catch (err: any) {
+      alert(`Erro ao atualizar cardápio: ${err.message}`);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const toggleAssetSelection = async (asset: HawkAsset) => {
+    const newSelected = !asset.selected;
+
+    // Optimistic update
+    setAssets(prev => prev.map(a => a.id === asset.id ? { ...a, selected: newSelected } : a));
+
+    const { error } = await supabase
+      .from('hawk_menu')
+      .update({ selected: newSelected })
+      .eq('id', asset.id);
+
+    if (error) {
+      console.error("Error updating toggle:", error);
+      // Revert on error
+      setAssets(prev => prev.map(a => a.id === asset.id ? { ...a, selected: !newSelected } : a));
+    }
+  };
+
+  const deleteAsset = async (id: string) => {
+    // Optimistic
+    setAssets(prev => prev.filter(a => a.id !== id));
+
+    const { error } = await supabase
+      .from('hawk_menu')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error("Error deleting asset:", error);
+      alert("Erro ao excluir ativo do cardápio.");
+    }
   };
 
   const renderTable = (type: HawkAssetType, term: HawkTerm, title: string) => {
@@ -117,7 +176,7 @@ const HawkGenerator: React.FC = () => {
                     <input
                       type="checkbox"
                       checked={asset.selected}
-                      onChange={() => setAssets(prev => prev.map(a => a.id === asset.id ? { ...a, selected: !a.selected } : a))}
+                      onChange={() => toggleAssetSelection(asset)}
                       className="w-6 h-6 rounded-lg border-slate-300 text-primary focus:ring-primary cursor-pointer"
                     />
                   </td>
@@ -131,7 +190,7 @@ const HawkGenerator: React.FC = () => {
                   <td className="px-10 py-6 text-right">
                     <div className="flex items-center justify-end gap-4">
                       <button onClick={() => setSelectedAssetForLamina(asset)} className="bg-white border border-slate-200 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase text-slate-600 hover:border-[#102218] hover:text-[#102218] transition-all shadow-sm">Lâmina</button>
-                      <button onClick={() => setAssets(prev => prev.filter(a => a.id !== asset.id))} className="text-slate-300 hover:text-red-500 transition-colors">
+                      <button onClick={() => deleteAsset(asset.id)} className="text-slate-300 hover:text-red-500 transition-colors">
                         <span className="material-symbols-outlined text-[24px]">delete</span>
                       </button>
                     </div>

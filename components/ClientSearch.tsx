@@ -43,9 +43,11 @@ const ClientSearch: React.FC<ClientSearchProps> = ({
         // Connection check
         const checkConnection = async () => {
             try {
-                const { count, error } = await supabase.from('cadastro_clientes').select('*', { count: 'exact', head: true });
-                console.log(`[ClientSearch] Connection Check - Count: ${count}, Error:`, error);
-                if (error) setError(`DB: ${error.message}`);
+                const { error: sbError } = await supabase.from('cadastro_clientes').select('*', { count: 'exact', head: true });
+                if (sbError) {
+                    console.warn(`[ClientSearch] DB Connection Issue:`, sbError);
+                    setError(`DB: ${sbError.message}`);
+                }
             } catch (err: any) {
                 console.error('[ClientSearch] Connection Check crash:', err);
                 setError(`Crash: ${err.message}`);

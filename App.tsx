@@ -67,10 +67,10 @@ const App: React.FC = () => {
     // Safety timeout: Ensure loading screen eventually disappears
     const safetyTimer = setTimeout(() => {
       if (mounted && isAuthLoading) {
-        console.warn('Auth loading safety timeout hit');
+        console.warn('Auth loading safety timeout hit - forcing UI unlock');
         setIsAuthLoading(false);
       }
-    }, 5000);
+    }, 10000); // Increased to 10s for slower connections
 
     const initialize = async () => {
       try {
@@ -349,19 +349,21 @@ const App: React.FC = () => {
   };
 
   const updateOrder = async (clientId: string, orderId: string, updates: Partial<OrderItem>) => {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { id, client_id, created_at, ...dbUpdates } = updates as any;
+    console.log(`[DEBUG] updateOrder - Client: ${clientId}, Order: ${orderId}`, updates);
 
-    const { error } = await supabase
-      .from('orders')
-      .update(dbUpdates)
-      .eq('id', orderId);
+    // Filtro de colunas para evitar o Erro 400 (coluna inexistente no banco)
+    const validColumns = [
+      'ticker', 'side', 'lastPrice', 'orderPrice', 'mode', 'basis', 'value', 'stopLoss'
+    ];
 
-    if (error) {
-      console.error('Error updating order:', error);
-      return;
-    }
+    const dbUpdates: any = {};
+    Object.keys(updates).forEach(key => {
+      if (validColumns.includes(key)) {
+        dbUpdates[key] = (updates as any)[key];
+      }
+    });
 
+    // Atualizamos o estado local IMEDIATAMENTE para a UI refletir a cotação
     setClients(prev => prev.map(c => {
       if (c.id === clientId) {
         return {
@@ -371,6 +373,17 @@ const App: React.FC = () => {
       }
       return c;
     }));
+
+    if (Object.keys(dbUpdates).length === 0) return;
+
+    const { error } = await supabase
+      .from('orders')
+      .update(dbUpdates)
+      .eq('id', orderId);
+
+    if (error) {
+      console.error('[DEBUG] Erro ao persistir no Supabase:', error.message, error.details);
+    }
   };
 
   const removeOrder = async (clientId: string, orderId: string) => {
@@ -670,7 +683,7 @@ const App: React.FC = () => {
 
               <div className="mt-auto pt-6 px-1 flex flex-col gap-2">
                 <div className="text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-[0.2em] text-center mb-2">
-                  FinancePro v5.4.6
+                  FinancePro v5.4.7
                 </div>
               </div>
             </nav>

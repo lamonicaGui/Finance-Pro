@@ -41,20 +41,35 @@ const OrderRow: React.FC<OrderRowProps> = ({ order, onUpdate, onRemove }) => {
   }, [order.ticker]);
 
   const fetchQuote = async (ticker: string) => {
+    if (!ticker) return;
     setIsQuoting(true);
     try {
-      const yahooTicker = ticker.endsWith('.SA') ? ticker : `${ticker}.SA`;
-      const res = await fetch(`/api/yahoo/v8/finance/chart/${yahooTicker}?interval=1d&range=1d`);
-      if (res.ok) {
-        const data = await res.json();
-        const price = data.chart?.result?.[0]?.meta?.regularMarketPrice;
-        const shortName = data.chart?.result?.[0]?.meta?.shortName || data.chart?.result?.[0]?.meta?.longName;
+      const cleanTicker = ticker.trim();
+      const yahooTicker = cleanTicker.endsWith('.SA') ? cleanTicker : `${cleanTicker}.SA`;
+      // Use timestamp to avoid browser caching
+      const ts = Date.now();
+      const url = `/api/yahoo/v8/finance/chart/${encodeURIComponent(yahooTicker)}?interval=1d&range=1d&_=${ts}`;
+
+      const res = await fetch(url);
+
+      if (!res.ok) {
+        console.error(`Status erro cotação ${cleanTicker}: ${res.status}`);
+        return;
+      }
+
+      const data = await res.json();
+      const result = data.chart?.result?.[0];
+
+      if (result) {
+        const price = result.meta?.regularMarketPrice || result.meta?.chartPreviousClose;
+        const shortName = result.meta?.shortName || result.meta?.longName;
+
+        console.log(`Cotação recebida para ${cleanTicker}:`, { price, shortName });
 
         const updates: Partial<OrderItem> = {};
-        if (price) updates.lastPrice = price;
+        if (price !== undefined && price !== null) updates.lastPrice = price;
         if (shortName) updates.assetName = shortName;
 
-        // Se estiver em modo Mercado, o preço da ordem segue a cotação
         if (order.mode === 'Mercado' && price) {
           updates.orderPrice = price;
         }
@@ -62,9 +77,11 @@ const OrderRow: React.FC<OrderRowProps> = ({ order, onUpdate, onRemove }) => {
         if (Object.keys(updates).length > 0) {
           onUpdate(updates);
         }
+      } else {
+        console.warn(`Resposta sem resultado para ${cleanTicker}:`, data);
       }
     } catch (e) {
-      console.warn(`Erro ao buscar cotação para ${ticker}:`, e);
+      console.error(`Erro ao buscar cotação para ${ticker}:`, e);
     } finally {
       setIsQuoting(false);
     }

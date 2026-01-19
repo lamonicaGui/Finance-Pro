@@ -566,7 +566,7 @@ const PerformanceAnalysis: React.FC = () => {
     return (
         <div className="space-y-8 animate-in fade-in duration-500 -mt-10">
             {/* Filter & Source Header */}
-            <div className="bg-white dark:bg-card-dark rounded-[3rem] p-10 shadow-2xl shadow-slate-200/40 dark:shadow-none border border-slate-100 dark:border-slate-800 relative overflow-hidden group">
+            <div className="bg-white dark:bg-card-dark rounded-[3rem] p-10 shadow-2xl shadow-slate-200/40 dark:shadow-none border border-slate-100 dark:border-slate-800 relative group">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl group-hover:bg-primary/10 transition-all duration-700"></div>
 
                 <div className="relative z-10 flex flex-col gap-8">

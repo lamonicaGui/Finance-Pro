@@ -47,20 +47,30 @@ const HawkOrderModal: React.FC<HawkOrderModalProps> = ({ selectedAssets, allAsse
     try {
       const uniqueTickers = Array.from(new Set(allAssets.map(a => a.ticker))) as string[];
       const priceMap: Record<string, number> = {};
+      const ts = Date.now();
 
       await Promise.all(uniqueTickers.map(async (ticker: string) => {
         try {
-          const yahooTicker = ticker.endsWith('.SA') ? ticker : `${ticker}.SA`;
-          const res = await fetch(`/api/yahoo/v8/finance/chart/${yahooTicker}?interval=1d&range=1d`);
-          if (res.ok) {
-            const data = await res.json();
-            const price = data.chart?.result?.[0]?.meta?.regularMarketPrice;
-            if (price) {
-              priceMap[ticker] = price;
-            }
+          const cleanTicker = ticker.trim();
+          const yahooTicker = cleanTicker.endsWith('.SA') ? cleanTicker : `${cleanTicker}.SA`;
+          const res = await fetch(`/api/yahoo/v8/finance/chart/${encodeURIComponent(yahooTicker)}?interval=1d&range=1d&_=${ts}`);
+
+          if (!res.ok) {
+            console.warn(`Erro HTTP para ${cleanTicker}: ${res.status}`);
+            return;
+          }
+
+          const data = await res.json();
+          const result = data.chart?.result?.[0];
+          const price = result?.meta?.regularMarketPrice || result?.meta?.chartPreviousClose;
+
+          console.log(`[DEBUG] Hawk quote for ${cleanTicker}:`, { price });
+
+          if (price !== undefined && price !== null) {
+            priceMap[ticker] = price;
           }
         } catch (e) {
-          console.warn(`Erro quote ${ticker}:`, e);
+          console.error(`Erro ao buscar cotação para ${ticker}:`, e);
         }
       }));
 
