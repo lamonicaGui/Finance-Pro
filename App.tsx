@@ -810,7 +810,7 @@ const App: React.FC = () => {
           )}
 
           <p className="text-[9px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-widest text-center pt-6">
-            © 2024 FINANCEPRO
+            © 2024 FINANCEPRO V5.5.0
           </p>
         </div>
       </aside>
