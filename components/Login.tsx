@@ -12,6 +12,9 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     const [error, setError] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
     const [isRecovering, setIsRecovering] = useState(false);
+    const [isChangingPassword, setIsChangingPassword] = useState(false);
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -19,7 +22,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         setError(null);
         setSuccessMessage(null);
 
-        const { error: authError } = await supabase.auth.signInWithPassword({
+        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
             email,
             password,
         });
@@ -29,8 +32,49 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 ? 'Credenciais inválidas. Verifique seu e-mail e senha.'
                 : authError.message);
             setLoading(false);
+        } else if (authData.user) {
+            // Check if user must change password
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('must_change_password')
+                .eq('id', authData.user.id)
+                .single();
+
+            if (profile?.must_change_password) {
+                setIsChangingPassword(true);
+                setLoading(false);
+            } else {
+                onLoginSuccess();
+            }
+        }
+    };
+
+    const handleChangePassword = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (newPassword !== confirmPassword) {
+            setError('As senhas não coincidem.');
+            return;
+        }
+
+        setLoading(true);
+        const { error: updateError } = await supabase.auth.updateUser({
+            password: newPassword
+        });
+
+        if (updateError) {
+            setError(updateError.message);
+            setLoading(false);
         } else {
-            onLoginSuccess();
+            // Update profile flag
+            await supabase
+                .from('profiles')
+                .update({ must_change_password: false })
+                .eq('id', (await supabase.auth.getUser()).data.user?.id);
+
+            setSuccessMessage('Senha alterada com sucesso! Você já pode acessar o sistema.');
+            setTimeout(() => {
+                onLoginSuccess();
+            }, 1500);
         }
     };
 
@@ -76,50 +120,89 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                         </p>
                     </div>
 
-                    <form onSubmit={isRecovering ? handleResetPassword : handleLogin} className="space-y-6">
-                        <div>
-                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
-                                E-mail institucional
-                            </label>
-                            <div className="relative">
-                                <span className="absolute left-4 top-3.5 material-symbols-outlined text-slate-400 text-[20px]">mail</span>
-                                <input
-                                    type="email"
-                                    required
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-sm font-medium text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all shadow-inner"
-                                    placeholder="seu.email@katinvest.com.br"
-                                />
-                            </div>
-                        </div>
-
-                        {!isRecovering && (
-                            <div>
-                                <div className="flex items-center justify-between mb-2 ml-1">
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                        Senha de acesso
+                    <form onSubmit={isChangingPassword ? handleChangePassword : (isRecovering ? handleResetPassword : handleLogin)} className="space-y-6">
+                        {isChangingPassword ? (
+                            <>
+                                <div className="bg-primary/5 border border-primary/20 p-4 rounded-2xl mb-6">
+                                    <p className="text-[10px] text-primary font-black uppercase tracking-widest mb-1">Primeiro Acesso</p>
+                                    <p className="text-xs text-white/70 font-medium">Por segurança, você deve definir uma senha definitiva agora.</p>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Nova Senha</label>
+                                    <div className="relative">
+                                        <span className="absolute left-4 top-3.5 material-symbols-outlined text-slate-400 text-[20px]">lock_open</span>
+                                        <input
+                                            type="password"
+                                            required
+                                            value={newPassword}
+                                            onChange={(e) => setNewPassword(e.target.value)}
+                                            className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-sm font-medium text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all shadow-inner"
+                                            placeholder="Min. 6 caracteres"
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Confirmar Senha</label>
+                                    <div className="relative">
+                                        <span className="absolute left-4 top-3.5 material-symbols-outlined text-slate-400 text-[20px]">verified_user</span>
+                                        <input
+                                            type="password"
+                                            required
+                                            value={confirmPassword}
+                                            onChange={(e) => setConfirmPassword(e.target.value)}
+                                            className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-sm font-medium text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all shadow-inner"
+                                            placeholder="Repita a nova senha"
+                                        />
+                                    </div>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
+                                        E-mail institucional
                                     </label>
-                                    <button
-                                        type="button"
-                                        onClick={() => { setIsRecovering(true); setError(null); setSuccessMessage(null); }}
-                                        className="text-[10px] font-black text-primary/60 hover:text-primary uppercase tracking-tighter transition-colors"
-                                    >
-                                        Esqueci minha senha
-                                    </button>
+                                    <div className="relative">
+                                        <span className="absolute left-4 top-3.5 material-symbols-outlined text-slate-400 text-[20px]">mail</span>
+                                        <input
+                                            type="email"
+                                            required
+                                            value={email}
+                                            onChange={(e) => setEmail(e.target.value)}
+                                            className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-sm font-medium text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all shadow-inner"
+                                            placeholder="seu.email@katinvest.com.br"
+                                        />
+                                    </div>
                                 </div>
-                                <div className="relative">
-                                    <span className="absolute left-4 top-3.5 material-symbols-outlined text-slate-400 text-[20px]">lock</span>
-                                    <input
-                                        type="password"
-                                        required
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                        className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-sm font-medium text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all shadow-inner"
-                                        placeholder="••••••••"
-                                    />
-                                </div>
-                            </div>
+
+                                {!isRecovering && (
+                                    <div>
+                                        <div className="flex items-center justify-between mb-2 ml-1">
+                                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                Senha de acesso
+                                            </label>
+                                            <button
+                                                type="button"
+                                                onClick={() => { setIsRecovering(true); setError(null); setSuccessMessage(null); }}
+                                                className="text-[10px] font-black text-primary/60 hover:text-primary uppercase tracking-tighter transition-colors"
+                                            >
+                                                Esqueci minha senha
+                                            </button>
+                                        </div>
+                                        <div className="relative">
+                                            <span className="absolute left-4 top-3.5 material-symbols-outlined text-slate-400 text-[20px]">lock</span>
+                                            <input
+                                                type="password"
+                                                required
+                                                value={password}
+                                                onChange={(e) => setPassword(e.target.value)}
+                                                className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-sm font-medium text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all shadow-inner"
+                                                placeholder="••••••••"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </>
                         )}
 
                         {error && (
@@ -149,7 +232,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                                     </>
                                 ) : (
                                     <>
-                                        {isRecovering ? 'Solicitar Redefinição' : 'Entrar no Sistema'}
+                                        {isChangingPassword ? 'Definir Senha Definitiva' : (isRecovering ? 'Solicitar Redefinição' : 'Entrar no Sistema')}
                                         <span className="material-symbols-outlined text-lg group-hover:translate-x-1 transition-transform">
                                             {isRecovering ? 'send' : 'arrow_forward'}
                                         </span>
@@ -157,10 +240,18 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                                 )}
                             </button>
 
-                            {isRecovering && (
+                            {(isRecovering || isChangingPassword) && (
                                 <button
                                     type="button"
-                                    onClick={() => { setIsRecovering(false); setError(null); setSuccessMessage(null); }}
+                                    onClick={() => {
+                                        if (isChangingPassword) {
+                                            supabase.auth.signOut();
+                                        }
+                                        setIsRecovering(false);
+                                        setIsChangingPassword(false);
+                                        setError(null);
+                                        setSuccessMessage(null);
+                                    }}
                                     className="w-full py-4 rounded-2xl border border-white/10 text-white font-black uppercase text-[10px] tracking-widest hover:bg-white/5 transition-all text-center"
                                 >
                                     Voltar para o Login

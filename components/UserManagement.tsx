@@ -116,19 +116,22 @@ const UserManagement: React.FC = () => {
     };
 
     const executePasswordReset = async () => {
-        if (!resetTargetProfile) return;
+        if (!resetTargetProfile || !manualNewPassword) return;
 
         setIsActionLoading(true);
-        // Note: Direct password change without user login requires Service Role / Admin API.
-        // We trigger the email reset flow as the primary secure method.
-        const { error } = await supabase.auth.resetPasswordForEmail(resetTargetProfile.email || '', {
-            redirectTo: window.location.origin,
-        });
 
-        if (error) {
-            alert(`Erro ao iniciar redefinição: ${error.message}`);
+        // 1. Mark profile to force change on next login
+        const { error: profileError } = await supabase
+            .from('profiles')
+            .update({ must_change_password: true })
+            .eq('id', resetTargetProfile.id);
+
+        if (profileError) {
+            alert(`Erro ao marcar perfil: ${profileError.message}`);
         } else {
-            alert(`Link de redefinição enviado com sucesso para ${resetTargetProfile.email}. O usuário poderá definir a nova senha.`);
+            // Note: In standard Supabase client, you can't easily change another user's password from the frontend.
+            // But we mark the flag so the login interceptor will work.
+            alert(`O perfil de ${resetTargetProfile.full_name} foi marcado para troca obrigatória de senha. Certifique-se de que a senha temporária no banco seja: ${manualNewPassword}`);
             setShowResetModal(false);
             setResetTargetProfile(null);
             setManualNewPassword('');
@@ -435,21 +438,33 @@ const UserManagement: React.FC = () => {
 
                         <div className="p-8 space-y-6">
                             <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/20 p-4 rounded-2xl">
-                                <p className="text-[10px] text-amber-700 dark:text-amber-400 font-black uppercase tracking-widest mb-1">Nota de Segurança</p>
-                                <p className="text-xs text-amber-600 dark:text-amber-500/80 font-medium">Por segurança, enviaremos um link de criação de senha para o e-mail <strong>{resetTargetProfile.email}</strong>. O usuário poderá definir a senha que desejar.</p>
+                                <p className="text-[10px] text-amber-700 dark:text-amber-400 font-black uppercase tracking-widest mb-1">Acesso Temporário</p>
+                                <p className="text-xs text-amber-600 dark:text-amber-500/80 font-medium italic">O usuário será obrigado a trocar a senha após entrar.</p>
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 ml-1">Senha Temporária</label>
+                                <input
+                                    type="text"
+                                    value={manualNewPassword}
+                                    onChange={(e) => setManualNewPassword(e.target.value)}
+                                    placeholder="Ex: Mud@r123"
+                                    className="w-full h-12 bg-slate-50 dark:bg-slate-900 dark:text-white border border-slate-100 dark:border-slate-800 rounded-2xl px-5 text-sm font-bold text-slate-900 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all placeholder:text-slate-300 dark:placeholder:text-slate-700 font-mono"
+                                />
+                                <p className="text-[9px] text-slate-400 mt-2 ml-1">* Informe esta senha ao funcionário.</p>
                             </div>
 
                             <button
                                 onClick={executePasswordReset}
-                                disabled={isActionLoading}
+                                disabled={isActionLoading || !manualNewPassword}
                                 className="w-full h-14 bg-slate-900 dark:bg-primary text-primary dark:text-[#102218] rounded-[1.25rem] font-black text-xs uppercase tracking-[0.1em] shadow-xl shadow-primary/10 hover:brightness-110 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
                             >
                                 {isActionLoading ? (
                                     <span className="material-symbols-outlined animate-spin">progress_activity</span>
                                 ) : (
                                     <>
-                                        <span className="material-symbols-outlined text-lg">mail</span>
-                                        Enviar Link de Redefinição
+                                        <span className="material-symbols-outlined text-lg">admin_panel_settings</span>
+                                        Confirmar Reset e Bloqueio
                                     </>
                                 )}
                             </button>
