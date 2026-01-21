@@ -264,7 +264,7 @@ const UserManagement: React.FC = () => {
                                                     className="h-10 w-10 flex items-center justify-center rounded-xl hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-all"
                                                     title="Criar Nova Senha"
                                                 >
-                                                    <span className="material-symbols-outlined text-lg">lock_reset</span>
+                                                    <span className="material-symbols-outlined text-lg">key</span>
                                                 </button>
                                                 <button
                                                     onClick={() => deleteUser(profile.id, profile.email || '')}
@@ -413,6 +413,47 @@ const UserManagement: React.FC = () => {
                                 )}
                             </button>
                         </form>
+                    </div>
+                </div>
+            )}
+            {/* Password Reset Modal */}
+            {showResetModal && resetTargetProfile && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md transition-all animate-in fade-in">
+                    <div className="bg-white dark:bg-slate-950 w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-100 dark:border-slate-800">
+                        <div className="p-8 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-gradient-to-br from-slate-50 to-white dark:from-slate-900/50 dark:to-slate-950">
+                            <div>
+                                <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase">Redefinir Senha</h3>
+                                <p className="text-slate-500 dark:text-slate-400 font-medium italic text-[11px]">Gerar acesso para {resetTargetProfile.full_name}</p>
+                            </div>
+                            <button
+                                onClick={() => { setShowResetModal(false); setResetTargetProfile(null); }}
+                                className="h-10 w-10 flex items-center justify-center rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-red-500 transition-all shadow-sm"
+                            >
+                                <span className="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+
+                        <div className="p-8 space-y-6">
+                            <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/20 p-4 rounded-2xl">
+                                <p className="text-[10px] text-amber-700 dark:text-amber-400 font-black uppercase tracking-widest mb-1">Nota de Segurança</p>
+                                <p className="text-xs text-amber-600 dark:text-amber-500/80 font-medium">Por segurança, enviaremos um link de criação de senha para o e-mail <strong>{resetTargetProfile.email}</strong>. O usuário poderá definir a senha que desejar.</p>
+                            </div>
+
+                            <button
+                                onClick={executePasswordReset}
+                                disabled={isActionLoading}
+                                className="w-full h-14 bg-slate-900 dark:bg-primary text-primary dark:text-[#102218] rounded-[1.25rem] font-black text-xs uppercase tracking-[0.1em] shadow-xl shadow-primary/10 hover:brightness-110 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
+                            >
+                                {isActionLoading ? (
+                                    <span className="material-symbols-outlined animate-spin">progress_activity</span>
+                                ) : (
+                                    <>
+                                        <span className="material-symbols-outlined text-lg">mail</span>
+                                        Enviar Link de Redefinição
+                                    </>
+                                )}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
