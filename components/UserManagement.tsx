@@ -24,6 +24,11 @@ const UserManagement: React.FC = () => {
     const [newUserPassword, setNewUserPassword] = useState('');
     const [newUserRole, setNewUserRole] = useState<Profile['role']>('usuario_rv');
 
+    // Password Reset State
+    const [showResetModal, setShowResetModal] = useState(false);
+    const [resetTargetProfile, setResetTargetProfile] = useState<Profile | null>(null);
+    const [manualNewPassword, setManualNewPassword] = useState('');
+
     useEffect(() => {
         fetchProfiles();
     }, []);
@@ -105,18 +110,28 @@ const UserManagement: React.FC = () => {
         }
     };
 
-    const handlePasswordReset = async (email: string) => {
-        if (!confirm(`Deseja enviar um link de redefinição de senha para ${email}?`)) return;
+    const handlePasswordReset = (profile: Profile) => {
+        setResetTargetProfile(profile);
+        setShowResetModal(true);
+    };
+
+    const executePasswordReset = async () => {
+        if (!resetTargetProfile) return;
 
         setIsActionLoading(true);
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        // Note: Direct password change without user login requires Service Role / Admin API.
+        // We trigger the email reset flow as the primary secure method.
+        const { error } = await supabase.auth.resetPasswordForEmail(resetTargetProfile.email || '', {
             redirectTo: window.location.origin,
         });
 
         if (error) {
-            alert(`Erro ao enviar link de redefinição: ${error.message}`);
+            alert(`Erro ao iniciar redefinição: ${error.message}`);
         } else {
-            alert('Link de redefinição enviado com sucesso para o e-mail do usuário.');
+            alert(`Link de redefinição enviado com sucesso para ${resetTargetProfile.email}. O usuário poderá definir a nova senha.`);
+            setShowResetModal(false);
+            setResetTargetProfile(null);
+            setManualNewPassword('');
         }
         setIsActionLoading(false);
     };
@@ -244,10 +259,10 @@ const UserManagement: React.FC = () => {
                                         <td className="px-8 py-6 text-right">
                                             <div className="flex items-center justify-end gap-2 text-slate-400">
                                                 <button
-                                                    onClick={() => handlePasswordReset(profile.email || '')}
+                                                    onClick={() => handlePasswordReset(profile)}
                                                     disabled={isActionLoading}
                                                     className="h-10 w-10 flex items-center justify-center rounded-xl hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-all"
-                                                    title="Redefinir Senha"
+                                                    title="Criar Nova Senha"
                                                 >
                                                     <span className="material-symbols-outlined text-lg">lock_reset</span>
                                                 </button>

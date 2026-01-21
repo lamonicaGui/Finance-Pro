@@ -20,7 +20,7 @@ const HawkGenerator: React.FC = () => {
   const [selectedAssetForLamina, setSelectedAssetForLamina] = useState<HawkAsset | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch from Supabase on mount
+  // Fetch from Supabase on mount and subscribe to changes
   React.useEffect(() => {
     const fetchAssets = async () => {
       const { data, error } = await supabase
@@ -30,7 +30,26 @@ const HawkGenerator: React.FC = () => {
       if (data) setAssets(data);
       if (error) console.error("Error fetching hawk menu:", error);
     };
+
     fetchAssets();
+
+    // Subscribe to real-time changes
+    const channel = supabase
+      .channel('hawk_menu_changes')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'hawk_menu'
+      }, () => {
+        // Simple strategy: refetch everything on any change
+        // This ensures consistent ordering and state for all users
+        fetchAssets();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const today = new Date();

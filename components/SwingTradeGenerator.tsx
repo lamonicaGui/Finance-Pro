@@ -18,7 +18,7 @@ const SwingTradeGenerator: React.FC<SwingTradeGeneratorProps> = ({ userEmail }) 
     const [showDebug, setShowDebug] = useState(false);
     const [orderAssets, setOrderAssets] = useState<SwingTradeAsset[]>([]);
 
-    // Load from Supabase on mount
+    // Load from Supabase on mount and subscribe to changes
     useEffect(() => {
         const fetchAssets = async () => {
             const { data, error } = await supabase
@@ -28,7 +28,24 @@ const SwingTradeGenerator: React.FC<SwingTradeGeneratorProps> = ({ userEmail }) 
             if (data) setAssets(data);
             if (error) console.error("Error fetching swing trade menu:", error);
         };
+
         fetchAssets();
+
+        // Subscribe to real-time changes
+        const channel = supabase
+            .channel('swing_trade_menu_changes')
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'swing_trade_menu'
+            }, () => {
+                fetchAssets();
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, []);
 
     // Sincronização de Preços (Yahoo Finance Proxy)
