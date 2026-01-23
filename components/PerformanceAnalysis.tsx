@@ -599,7 +599,7 @@ const PerformanceAnalysis: React.FC = () => {
             filename: 'Relatorio_Performance.pdf',
             image: { type: 'jpeg', quality: 0.98 },
             html2canvas: { scale: 2, useCORS: true },
-            jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
         };
 
         // @ts-ignore
@@ -785,9 +785,9 @@ const PerformanceAnalysis: React.FC = () => {
 
             {/* Performance Report */}
             {operations.length > 0 && summary && (
-                <div ref={reportRef} className="space-y-8 pb-10">
+                <div ref={reportRef} className="space-y-8 pb-10 pdf-content">
                     {/* Header Actions */}
-                    <div className="flex justify-between items-center bg-white dark:bg-card-dark rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none mb-4">
+                    <div className="flex justify-between items-center bg-white dark:bg-card-dark rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none mb-4" data-html2canvas-ignore="true">
                         <div>
                             <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase italic tracking-tight">Métricas de Performance</h3>
                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{summary.totalOperations} Operações Identificadas</p>
@@ -802,7 +802,7 @@ const PerformanceAnalysis: React.FC = () => {
                     </div>
 
                     {/* Client Information Header */}
-                    <div className="bg-white dark:bg-card-dark rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none mb-4 flex flex-wrap gap-8 items-center justify-between">
+                    <div className="bg-white dark:bg-card-dark rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none mb-4 flex flex-wrap gap-8 items-center justify-between pdf-avoid-break">
                         <div className="flex items-center gap-4">
                             <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
                                 <span className="material-symbols-outlined text-3xl">person</span>
@@ -857,7 +857,7 @@ const PerformanceAnalysis: React.FC = () => {
                                 icon: 'done_all'
                             }
                         ].map((kpi, i) => (
-                            <div key={i} className="bg-white dark:bg-card-dark rounded-[2rem] p-6 border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none">
+                            <div key={i} className="bg-white dark:bg-card-dark rounded-[2rem] p-6 border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none pdf-avoid-break">
                                 <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">{kpi.label}</p>
                                 <h3 className={`text-2xl font-black ${kpi.pos ? 'text-emerald-600' : (kpi as any).neg ? 'text-red-500' : 'text-slate-800 dark:text-white'}`}>
                                     {kpi.value}
@@ -956,7 +956,7 @@ const PerformanceAnalysis: React.FC = () => {
                     </div>
 
                     {/* Detailed Table */}
-                    <div className="bg-white dark:bg-card-dark rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none overflow-hidden">
+                    <div className="bg-white dark:bg-card-dark rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none overflow-hidden pdf-avoid-break">
                         <div className="px-8 py-6 border-b border-slate-50 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/30">
                             <h4 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">Detalhamento por Operação</h4>
                             <span className="px-3 py-1 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-full text-[10px] font-black text-slate-500 uppercase">

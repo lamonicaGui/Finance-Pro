@@ -56,8 +56,45 @@
         }
 
         .html2canvas-container {
-            width: 1400px !important;
+            width: 800px !important;
             height: auto !important;
+        }
+
+        @media print {
+            @page {
+                size: portrait;
+                margin: 10mm;
+            }
+
+            body {
+                background: white !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            /* Hide everything except root content if needed, but here we capture a specific ref */
+        }
+
+        /* Classes auxiliares para o PDF (html2pdf/html2canvas) */
+        .pdf-content table {
+            font-size: 8px !important;
+        }
+
+        .pdf-content .overflow-x-auto {
+            overflow: visible !important;
+        }
+
+        .pdf-content .rounded-\[2\.5rem\] {
+            border-radius: 1rem !important;
+            /* Bordas menores para economizar espaço */
+        }
+
+        .pdf-page-break {
+            page-break-before: always;
+        }
+
+        .pdf-avoid-break {
+            page-break-inside: avoid;
         }
 
         ::-webkit-scrollbar {
