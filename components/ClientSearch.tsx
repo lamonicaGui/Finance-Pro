@@ -172,7 +172,7 @@ const ClientSearch: React.FC<ClientSearchProps> = ({
                                         onClick={() => handleSelect(client)}
                                     >
                                         <div className="flex flex-col">
-                                            <span className="truncate font-black text-slate-900 dark:text-white uppercase tracking-tight text-[11px]">{client.Cliente}</span>
+                                            <span className="font-black text-slate-900 dark:text-white uppercase text-[11px]">{client.Cliente}</span>
                                             <div className="flex items-center gap-2 mt-1">
                                                 <span className="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[9px] font-black text-slate-400 uppercase tracking-tighter">CONTA: {client.Conta}</span>
                                                 <span className="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[9px] font-black text-slate-400 uppercase tracking-tighter">BOLSA: {client["Cod Bolsa"]}</span>

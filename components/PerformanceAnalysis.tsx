@@ -677,8 +677,8 @@ const PerformanceAnalysis: React.FC = () => {
                     </div>
 
                     {/* Filters Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 bg-slate-50/50 dark:bg-slate-900/30 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 relative">
-                        <div className="space-y-2">
+                    <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-8 gap-4 bg-slate-50/50 dark:bg-slate-900/30 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 relative">
+                        <div className="space-y-2 md:col-span-2 lg:col-span-3">
                             <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Cliente</label>
                             <ClientSearch
                                 placeholder="Nome, Conta ou Bolsa..."
@@ -984,7 +984,7 @@ const PerformanceAnalysis: React.FC = () => {
                                             <td className="px-4 py-5">
                                                 <div className="flex flex-col">
                                                     <span className="text-sm font-black text-slate-800 dark:text-white uppercase leading-tight">{op.ticker}</span>
-                                                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tighter truncate max-w-[120px]">{op.cliente}</span>
+                                                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tighter">{op.cliente}</span>
                                                 </div>
                                             </td>
                                             <td className="px-4 py-5 text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-tighter">
