@@ -593,6 +593,9 @@ const PerformanceAnalysis: React.FC = () => {
         if (!reportRef.current) return;
         const element = reportRef.current;
 
+        // Ativa modo de exportação no body para triggers de CSS
+        document.body.classList.add('is-pdf-exporting');
+
         // Temporariamente força estilos de impressão
         const originalWidth = element.style.width;
         element.style.width = '700px';
@@ -615,6 +618,7 @@ const PerformanceAnalysis: React.FC = () => {
         // @ts-ignore
         html2pdf().set(opt).from(element).save().then(() => {
             element.style.width = originalWidth;
+            document.body.classList.remove('is-pdf-exporting');
         });
     };
 
