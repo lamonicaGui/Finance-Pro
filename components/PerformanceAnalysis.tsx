@@ -595,21 +595,21 @@ const PerformanceAnalysis: React.FC = () => {
 
         // Temporariamente força estilos de impressão
         const originalWidth = element.style.width;
-        element.style.width = '790px';
+        element.style.width = '700px';
 
         // @ts-ignore
         const opt = {
-            margin: [10, 0, 10, 0],
+            margin: 10,
             filename: `Relatorio_Performance_${selectedClient || 'Consolidado'}.pdf`,
-            image: { type: 'jpeg', quality: 1.0 },
+            image: { type: 'jpeg', quality: 0.98 },
             html2canvas: {
-                scale: 3,
+                scale: 2,
                 useCORS: true,
                 letterRendering: true,
                 logging: false,
-                windowWidth: 800
+                width: 700
             },
-            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true }
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
         };
 
         // @ts-ignore
