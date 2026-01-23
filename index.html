@@ -58,25 +58,36 @@
         /* Melhorias para Exportação PDF (Portrait) */
         .pdf-content {
             width: 790px !important;
-            margin: 0 auto !important;
-            padding: 20px !important;
+            margin: 0 !important;
+            padding: 40px !important;
+            /* Mais respiro lateral */
             background: white !important;
             color: black !important;
+            font-family: 'Inter', sans-serif !important;
         }
 
         .pdf-content * {
-            color: black !important;
-            border-color: #e2e8f0 !important;
+            color: #0f172a !important;
+            /* Slate 900 */
+            border-color: #f1f5f9 !important;
             box-shadow: none !important;
+            text-shadow: none !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
         }
 
+        /* Forçar fundos claros nos cards */
         .pdf-content .bg-card-dark,
+        .pdf-content .dark\:bg-card-dark,
+        .pdf-content .bg-white,
         .pdf-content .dark\:bg-card-dark {
-            background: white !important;
+            background: #ffffff !important;
+            border: 1px solid #f1f5f9 !important;
         }
 
         .pdf-content table {
-            font-size: 10px !important;
+            font-size: 11px !important;
+            /* Aumentado para melhor leitura */
             width: 100% !important;
             border-collapse: collapse !important;
         }
@@ -86,34 +97,42 @@
             color: #64748b !important;
             font-weight: 800 !important;
             text-transform: uppercase !important;
-            font-size: 8px !important;
-            padding: 10px 4px !important;
+            font-size: 9px !important;
+            padding: 12px 8px !important;
+            border-bottom: 2px solid #f1f5f9 !important;
         }
 
         .pdf-content td {
-            padding: 10px 4px !important;
-            border-bottom: 1px solid #f1f5f9 !important;
+            padding: 12px 8px !important;
+            border-bottom: 1px solid #f8fafc !important;
         }
 
-        .pdf-content .overflow-x-auto {
-            overflow: visible !important;
-            width: 100% !important;
+        /* Manter as cores de positivo/negativo no PDF */
+        .pdf-content .text-emerald-600 {
+            color: #059669 !important;
         }
 
-        .pdf-content .rounded-\[2\.5rem\],
-        .pdf-content .rounded-\[2rem\] {
-            border-radius: 0.75rem !important;
+        .pdf-content .text-red-500 {
+            color: #ef4444 !important;
+        }
+
+        .pdf-content .bg-emerald-50 {
+            background-color: #ecfdf5 !important;
+        }
+
+        .pdf-content .bg-red-50 {
+            background-color: #fef2f2 !important;
         }
 
         .pdf-avoid-break {
             page-break-inside: avoid !important;
-            break-inside: avoid !important;
+            break-inside: avoid-page !important;
         }
 
         @media print {
             @page {
                 size: portrait;
-                margin: 10mm;
+                margin: 0;
             }
 
             body {
