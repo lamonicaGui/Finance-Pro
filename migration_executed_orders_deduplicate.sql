@@ -14,8 +14,8 @@ BEGIN
             COALESCE(cliente, '') = COALESCE(NEW.cliente, '') AND
             COALESCE(papel, '') = COALESCE(NEW.papel, '') AND
             COALESCE(cv, '') = COALESCE(NEW.cv, '') AND
-            COALESCE(quantidade, 0) = COALESCE(NEW.quantidade, 0) AND
-            COALESCE(preco_medio, 0) = COALESCE(NEW.preco_medio, 0) AND
+            COALESCE(qtd_exec, '') = COALESCE(NEW.qtd_exec, '') AND
+            COALESCE(prc_medio, '') = COALESCE(NEW.prc_medio, '') AND
             COALESCE(conta, '') = COALESCE(NEW.conta, '')
     ) THEN
         -- If exists, skip the insert

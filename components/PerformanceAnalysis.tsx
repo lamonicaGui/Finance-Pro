@@ -195,7 +195,9 @@ const PerformanceAnalysis: React.FC = () => {
             if (aValue === bValue) return 0;
 
             let result = 0;
-            if (typeof aValue === 'number' && typeof bValue === 'number') {
+            if (sortConfig.key === 'entryDate' || sortConfig.key === 'exitDate') {
+                result = parseFullDate(String(aValue)) - parseFullDate(String(bValue));
+            } else if (typeof aValue === 'number' && typeof bValue === 'number') {
                 result = aValue - bValue;
             } else {
                 result = String(aValue).localeCompare(String(bValue));
@@ -225,12 +227,9 @@ const PerformanceAnalysis: React.FC = () => {
             if (selectedTicker) {
                 query = query.eq('papel', selectedTicker);
             }
-            if (endDate) {
-                query = query.lte('data', endDate);
-            }
-            // Importante: Não filtramos por startDate aqui, pois precisamos de todo o histórico 
-            // para casar as operações (FIFO) corretamente. O filtro de startDate será aplicado 
-            // no resultado final das operações encerradas.
+            // Removed database-side date filtering because 'data' is now TEXT in DD/MM/YYYY format.
+            // String comparison (lte) in the database would be incorrect.
+            // Filtering is handled in the JavaScript 'volumeData' and 'normalizedData' logic.
 
             const { data, error } = await query;
             console.log(`[PerformanceAnalysis] Filters:`, { selectedClient, selectedTicker, startDate, endDate });
