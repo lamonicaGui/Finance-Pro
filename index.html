@@ -55,20 +55,19 @@
             margin: 0;
         }
 
-        /* Melhorias para Exportação PDF (Portrait) */
-        .pdf-content {
+        /* Melhorias para Exportação PDF (Portrait - v5.6.5) */
+        /* Estilos aplicados APENAS durante a geração do PDF para não afetar a visualização em tela */
+        .is-pdf-exporting .pdf-content {
             width: 700px !important;
             margin: 0 !important;
             padding: 30px !important;
-            /* Mais respiro lateral */
             background: white !important;
             color: black !important;
             font-family: 'Inter', sans-serif !important;
         }
 
-        .pdf-content * {
+        .is-pdf-exporting .pdf-content * {
             color: #0f172a !important;
-            /* Slate 900 */
             border-color: #f1f5f9 !important;
             box-shadow: none !important;
             text-shadow: none !important;
@@ -76,23 +75,20 @@
             print-color-adjust: exact !important;
         }
 
-        /* Forçar fundos claros nos cards */
-        .pdf-content .bg-card-dark,
-        .pdf-content .dark\:bg-card-dark,
-        .pdf-content .bg-white,
-        .pdf-content .dark\:bg-card-dark {
+        .is-pdf-exporting .pdf-content .bg-card-dark,
+        .is-pdf-exporting .pdf-content .dark\:bg-card-dark,
+        .is-pdf-exporting .pdf-content .bg-white {
             background: #ffffff !important;
             border: 1px solid #f1f5f9 !important;
         }
 
-        .pdf-content table {
+        .is-pdf-exporting .pdf-content table {
             font-size: 10px !important;
-            /* Reduzido para caber em 700px */
             width: 100% !important;
             border-collapse: collapse !important;
         }
 
-        .pdf-content th {
+        .is-pdf-exporting .pdf-content th {
             background: #f8fafc !important;
             color: #64748b !important;
             font-weight: 800 !important;
@@ -102,25 +98,24 @@
             border-bottom: 2px solid #f1f5f9 !important;
         }
 
-        .pdf-content td {
+        .is-pdf-exporting .pdf-content td {
             padding: 8px 4px !important;
             border-bottom: 1px solid #f8fafc !important;
         }
 
-        /* Manter as cores de positivo/negativo no PDF */
-        .pdf-content .text-emerald-600 {
+        .is-pdf-exporting .pdf-content .text-emerald-600 {
             color: #059669 !important;
         }
 
-        .pdf-content .text-red-500 {
+        .is-pdf-exporting .pdf-content .text-red-500 {
             color: #ef4444 !important;
         }
 
-        .pdf-content .bg-emerald-50 {
+        .is-pdf-exporting .pdf-content .bg-emerald-50 {
             background-color: #ecfdf5 !important;
         }
 
-        .pdf-content .bg-red-50 {
+        .is-pdf-exporting .pdf-content .bg-red-50 {
             background-color: #fef2f2 !important;
         }
 

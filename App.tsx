@@ -683,7 +683,7 @@ const App: React.FC = () => {
 
               <div className="mt-auto pt-6 px-1 flex flex-col gap-2">
                 <div className="text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-[0.2em] text-center mb-2">
-                  FinancePro v5.6.4
+                  FinancePro v5.6.5
                 </div>
               </div>
             </nav>
@@ -810,7 +810,7 @@ const App: React.FC = () => {
           )}
 
           <p className="text-[9px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-widest text-center pt-6">
-            © 2024 FINANCEPRO v5.6.4
+            © 2024 FINANCEPRO v5.6.5
           </p>
         </div>
       </aside>
