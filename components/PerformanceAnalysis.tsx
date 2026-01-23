@@ -593,17 +593,31 @@ const PerformanceAnalysis: React.FC = () => {
         if (!reportRef.current) return;
         const element = reportRef.current;
 
+        // Armazenar estilo original para restaurar depois
+        const originalWidth = element.style.width;
+
+        // Forçar largura para o motor de captura (compatível com A4 Portrait)
+        element.style.width = '790px';
+
         // @ts-ignore
         const opt = {
-            margin: 10,
-            filename: 'Relatorio_Performance.pdf',
+            margin: [10, 5, 10, 5],
+            filename: `Relatorio_Performance_${selectedClient || 'Consolidado'}.pdf`,
             image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { scale: 2, useCORS: true },
+            html2canvas: {
+                scale: 2,
+                useCORS: true,
+                letterRendering: true,
+                windowWidth: 850
+            },
             jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
         };
 
         // @ts-ignore
-        html2pdf().set(opt).from(element).save();
+        html2pdf().set(opt).from(element).save().then(() => {
+            // Restaurar estilo original
+            element.style.width = originalWidth;
+        });
     };
 
     // 5. Preparação Robusta dos Dados do Gráfico

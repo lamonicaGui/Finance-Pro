@@ -55,9 +55,59 @@
             margin: 0;
         }
 
-        .html2canvas-container {
-            width: 800px !important;
-            height: auto !important;
+        /* Melhorias para Exportação PDF (Portrait) */
+        .pdf-content {
+            width: 790px !important;
+            margin: 0 auto !important;
+            padding: 20px !important;
+            background: white !important;
+            color: black !important;
+        }
+
+        .pdf-content * {
+            color: black !important;
+            border-color: #e2e8f0 !important;
+            box-shadow: none !important;
+        }
+
+        .pdf-content .bg-card-dark,
+        .pdf-content .dark\:bg-card-dark {
+            background: white !important;
+        }
+
+        .pdf-content table {
+            font-size: 10px !important;
+            width: 100% !important;
+            border-collapse: collapse !important;
+        }
+
+        .pdf-content th {
+            background: #f8fafc !important;
+            color: #64748b !important;
+            font-weight: 800 !important;
+            text-transform: uppercase !important;
+            font-size: 8px !important;
+            padding: 10px 4px !important;
+        }
+
+        .pdf-content td {
+            padding: 10px 4px !important;
+            border-bottom: 1px solid #f1f5f9 !important;
+        }
+
+        .pdf-content .overflow-x-auto {
+            overflow: visible !important;
+            width: 100% !important;
+        }
+
+        .pdf-content .rounded-\[2\.5rem\],
+        .pdf-content .rounded-\[2rem\] {
+            border-radius: 0.75rem !important;
+        }
+
+        .pdf-avoid-break {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
         }
 
         @media print {
@@ -67,34 +117,9 @@
             }
 
             body {
-                background: white !important;
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
             }
-
-            /* Hide everything except root content if needed, but here we capture a specific ref */
-        }
-
-        /* Classes auxiliares para o PDF (html2pdf/html2canvas) */
-        .pdf-content table {
-            font-size: 8px !important;
-        }
-
-        .pdf-content .overflow-x-auto {
-            overflow: visible !important;
-        }
-
-        .pdf-content .rounded-\[2\.5rem\] {
-            border-radius: 1rem !important;
-            /* Bordas menores para economizar espaço */
-        }
-
-        .pdf-page-break {
-            page-break-before: always;
-        }
-
-        .pdf-avoid-break {
-            page-break-inside: avoid;
         }
 
         ::-webkit-scrollbar {
