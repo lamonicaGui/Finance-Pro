@@ -447,6 +447,7 @@ const PerformanceAnalysis: React.FC = () => {
                             const resultBrRL = (sell.price - price) * matchQty;
                             const resultPercent = price === 0 ? 0 : ((sell.price / price) - 1) * 100;
 
+                            const volumeResult = (matchQty * sell.price) + (matchQty * price);
                             allOperations.push({
                                 id: Math.random().toString(36).substr(2, 9),
                                 ticker: r.papel,
@@ -457,8 +458,9 @@ const PerformanceAnalysis: React.FC = () => {
                                 entryPrice: sell.price,
                                 exitPrice: price,
                                 quantity: matchQty,
-                                volume: (matchQty * sell.price) + (matchQty * price),
+                                volume: volumeResult,
                                 resultBrRL,
+                                resultNet: resultBrRL - (volumeResult * 0.005),
                                 resultPercent,
                                 durationDays: Math.max(0, Math.ceil(Math.abs(parseFullDate(dataHora) - parseFullDate(sell.dataHora)) / (1000 * 60 * 60 * 24))),
                                 side: 'Short'
@@ -480,8 +482,10 @@ const PerformanceAnalysis: React.FC = () => {
                             const matchQty = Math.min(remainingQty, buy.qty);
 
                             const resultBrRL = (price - buy.price) * matchQty;
+                            const volume = (matchQty * buy.price) + (matchQty * price);
                             const resultPercent = buy.price === 0 ? 0 : ((price / buy.price) - 1) * 100;
 
+                            const volumeResult = (matchQty * buy.price) + (matchQty * price);
                             allOperations.push({
                                 id: Math.random().toString(36).substr(2, 9),
                                 ticker: r.papel,
@@ -492,8 +496,9 @@ const PerformanceAnalysis: React.FC = () => {
                                 entryPrice: buy.price,
                                 exitPrice: price,
                                 quantity: matchQty,
-                                volume: (matchQty * buy.price) + (matchQty * price),
+                                volume: volumeResult,
                                 resultBrRL,
+                                resultNet: resultBrRL - (volumeResult * 0.005),
                                 resultPercent,
                                 durationDays: Math.max(0, Math.ceil(Math.abs(parseFullDate(dataHora) - parseFullDate(buy.dataHora)) / (1000 * 60 * 60 * 24))),
                                 side: 'Long'
@@ -531,7 +536,7 @@ const PerformanceAnalysis: React.FC = () => {
             if (sortedOps.length > 0) {
                 const totalResult = sortedOps.reduce((sum, op) => sum + op.resultBrRL, 0);
                 const totalVolume = sortedOps.reduce((sum, op) => sum + op.volume, 0);
-                const winRate = (sortedOps.filter(op => op.resultBrRL > 0).length / sortedOps.length) * 100;
+                const winRate = (sortedOps.filter(op => (op.resultNet || op.resultBrRL) > 0).length / sortedOps.length) * 100;
                 const avgReturn = sortedOps.reduce((sum, op) => sum + op.resultPercent, 0) / sortedOps.length;
 
                 // Weighted Return: sum(resultPercent * volume) / sum(volume)
@@ -543,7 +548,7 @@ const PerformanceAnalysis: React.FC = () => {
                 let maxDD = 0;
 
                 sortedOps.forEach(op => {
-                    currentEquity += op.resultBrRL;
+                    currentEquity += (op.resultNet || op.resultBrRL);
                     if (currentEquity > maxEquity) maxEquity = currentEquity;
 
                     // Drawdown = (Current Equity - Peak) / Peak (only if peak > 0)
@@ -554,8 +559,15 @@ const PerformanceAnalysis: React.FC = () => {
                     }
                 });
 
+                const corretagem = totalVolumeOperated * 0.005;
+                const comissaoKAT = corretagem * 0.75;
+                const totalResultNet = totalResult - corretagem;
+
                 setSummary({
                     totalResultBrRL: totalResult,
+                    totalResultNet,
+                    corretagem,
+                    comissaoKAT,
                     averageReturnPercent: avgReturn,
                     weightedAverageReturnPercent: weightedAvg,
                     totalOperations: sortedOps.length,
@@ -601,7 +613,7 @@ const PerformanceAnalysis: React.FC = () => {
         let currentBalance = 0;
 
         operations.forEach(op => {
-            currentBalance += op.resultBrRL;
+            currentBalance += (op.resultNet || op.resultBrRL);
             dailyBalances[op.exitDate] = currentBalance;
         });
 
@@ -819,13 +831,15 @@ const PerformanceAnalysis: React.FC = () => {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         {[
                             {
-                                label: 'Resultado Total',
-                                value: formatCurrency(summary.totalResultBrRL),
+                                label: 'Resultado Total Líquido',
+                                value: formatCurrency(summary.totalResultNet || 0),
                                 icon: 'payments',
-                                pos: summary.totalResultBrRL >= 0,
+                                pos: (summary.totalResultNet || 0) >= 0,
                                 volumes: [
                                     { label: 'Vol. Encerrado', value: summary.totalVolume },
                                     { label: 'Vol. Operado', value: summary.totalVolumeOperated },
+                                    { label: 'Corretagem', value: summary.corretagem || 0 },
+                                    { label: 'Comissão KAT', value: summary.comissaoKAT || 0 },
                                     { label: 'Vol. Médio', value: summary.averageVolumeClosed }
                                 ]
                             },

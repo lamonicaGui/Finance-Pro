@@ -109,6 +109,7 @@ export interface Operation {
   quantity: number;
   volume: number;
   resultBrRL: number;
+  resultNet?: number;
   resultPercent: number;
   durationDays: number;
   side: 'Long' | 'Short';
@@ -116,6 +117,9 @@ export interface Operation {
 
 export interface PerformanceSummary {
   totalResultBrRL: number;
+  totalResultNet?: number;
+  corretagem?: number;
+  comissaoKAT?: number;
   averageReturnPercent: number;
   weightedAverageReturnPercent: number;
   totalOperations: number;
