@@ -200,7 +200,7 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
 
     const addClient = (client: any) => {
         const mappedClient: SelectedClient = {
-            id: client["Cod Bols"].toString(),
+            id: client["Cod Bolsa"].toString(),
             nome: client["Cliente"],
             conta: client["Conta"].toString(),
             email: client["Email Cliente"] || '',
