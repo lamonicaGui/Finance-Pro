@@ -57,6 +57,8 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
             if (line.id !== id) return line;
             const updated = { ...line, ...updates };
 
+            const isBDR = line.ticker.endsWith('31') || line.ticker.endsWith('32') || line.ticker.endsWith('33');
+
             if (updates.quantity !== undefined && updated.basis === 'Quantidade') {
                 const q = parseFloat(updates.quantity) || 0;
                 updated.financial = (q * updated.price).toFixed(2);
@@ -65,7 +67,15 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
             if (updates.financial !== undefined && updated.basis === 'Financeiro') {
                 const f = parseFloat(updates.financial) || 0;
                 if (updated.price > 0) {
-                    updated.quantity = Math.floor(f / updated.price).toString();
+                    if (isBDR) {
+                        updated.quantity = Math.floor(f / updated.price).toString();
+                    } else {
+                        // Stocks and Units: round down to nearest 100
+                        const qRaw = f / updated.price;
+                        updated.quantity = (Math.floor(qRaw / 100) * 100).toString();
+                    }
+                    // Re-calculate accurate financial after rounding quantity
+                    updated.financial = (parseFloat(updated.quantity) * updated.price).toFixed(2);
                 }
             }
 
@@ -73,7 +83,15 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
                 if (updated.basis === 'Quantidade' && updated.quantity) {
                     updated.financial = (parseFloat(updated.quantity) * updated.price).toFixed(2);
                 } else if (updated.basis === 'Financeiro' && updated.financial) {
-                    updated.quantity = Math.floor(parseFloat(updated.financial) / updated.price).toString();
+                    const f = parseFloat(updated.financial) || 0;
+                    if (updated.price > 0) {
+                        if (isBDR) {
+                            updated.quantity = Math.floor(f / updated.price).toString();
+                        } else {
+                            const qRaw = f / updated.price;
+                            updated.quantity = (Math.floor(qRaw / 100) * 100).toString();
+                        }
+                    }
                 }
             }
 
@@ -181,9 +199,28 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
                                                 </div>
                                                 <div className="col-span-1">
                                                     <label className="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Quantidade</label>
-                                                    <input type="number" placeholder="0" value={line.quantity} onChange={(e) => updateLine(line.id, { quantity: e.target.value })} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all" />
+                                                    <input
+                                                        type="number"
+                                                        placeholder="0"
+                                                        value={line.quantity}
+                                                        onChange={(e) => updateLine(line.id, { quantity: e.target.value, basis: 'Quantidade' })}
+                                                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                                                    />
                                                 </div>
-                                                <div className="col-span-2">
+                                                <div className="col-span-1">
+                                                    <label className="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Financeiro</label>
+                                                    <div className="relative">
+                                                        <span className="absolute left-4 top-3.5 text-slate-400 text-xs font-bold">R$</span>
+                                                        <input
+                                                            type="number"
+                                                            placeholder="0,00"
+                                                            value={line.financial}
+                                                            onChange={(e) => updateLine(line.id, { financial: e.target.value, basis: 'Financeiro' })}
+                                                            className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <div className="col-span-1">
                                                     <div className="grid grid-cols-2 gap-4">
                                                         <div>
                                                             <label className="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Alvo</label>
