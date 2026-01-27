@@ -19,8 +19,8 @@ interface OrderLineState {
     basis: 'Quantidade' | 'Financeiro';
     quantity: string;
     financial: string;
-    target: number;
-    stop: number;
+    target: string;
+    stop: string;
 }
 
 interface SelectedClient {
@@ -32,7 +32,7 @@ interface SelectedClient {
 }
 
 const formatFinanceiro = (val: string | number) => {
-    if (val === '' || val === undefined || val === null) return '';
+    if (val === '' || val === undefined || val === null || val === 0) return '';
     const num = typeof val === 'string' ? parseFloat(val.replace(/\./g, '').replace(',', '.')) : val;
     if (isNaN(num)) return '';
     return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num);
@@ -70,8 +70,8 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
             basis: 'Quantidade' as const,
             quantity: '',
             financial: '',
-            target: asset.targetPrice,
-            stop: asset.stopPrice
+            target: '', // Start blank per user request
+            stop: ''    // Start blank per user request
         })));
     }, [assets]);
 
@@ -94,23 +94,30 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
             const isBDR = line.ticker.endsWith('31') || line.ticker.endsWith('32') || line.ticker.endsWith('33');
 
             if (newUpdates.quantity !== undefined && updated.basis === 'Quantidade') {
-                const q = parseFloat(newUpdates.quantity) || 0;
-                updated.financial = formatFinanceiro(q * updated.price);
+                if (newUpdates.quantity === '') {
+                    updated.financial = '';
+                } else {
+                    const q = parseFloat(newUpdates.quantity) || 0;
+                    updated.financial = formatFinanceiro(q * updated.price);
+                }
             }
 
             if (newUpdates.financial !== undefined && updated.basis === 'Financeiro') {
                 const fRaw = parsePTBR(newUpdates.financial);
-                const f = parseFloat(fRaw) || 0;
-                if (updated.price > 0) {
-                    if (isBDR) {
-                        updated.quantity = Math.floor(f / updated.price).toString();
-                    } else {
-                        const qRaw = f / updated.price;
-                        updated.quantity = (Math.floor(qRaw / 100) * 100).toString();
-                    }
-                    // Remove the line that overwrote updated.financial here
+                if (fRaw === '') {
+                    updated.quantity = '';
                 } else {
-                    updated.quantity = '0';
+                    const f = parseFloat(fRaw) || 0;
+                    if (updated.price > 0) {
+                        if (isBDR) {
+                            updated.quantity = Math.floor(f / updated.price).toString();
+                        } else {
+                            const qRaw = f / updated.price;
+                            updated.quantity = (Math.floor(qRaw / 100) * 100).toString();
+                        }
+                    } else {
+                        updated.quantity = '0';
+                    }
                 }
             }
 
@@ -145,8 +152,8 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
             basis: 'Quantidade',
             quantity: '',
             financial: '',
-            target: 0,
-            stop: 0
+            target: '',
+            stop: ''
         };
         setExitLines([...exitLines, newLine]);
     };
@@ -284,8 +291,8 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
                                                             <label className="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Alvo</label>
                                                             <input
                                                                 type="text"
-                                                                value={line.target.toString().replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ".")}
-                                                                onChange={(e) => updateLine(line.id, { target: parseFloat(parsePTBR(e.target.value)) || 0 })}
+                                                                value={line.target.replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ".")}
+                                                                onChange={(e) => updateLine(line.id, { target: formatLivePTBR(e.target.value) })}
                                                                 className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none"
                                                             />
                                                         </div>
@@ -293,8 +300,8 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
                                                             <label className="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Stop</label>
                                                             <input
                                                                 type="text"
-                                                                value={line.stop.toString().replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ".")}
-                                                                onChange={(e) => updateLine(line.id, { stop: parseFloat(parsePTBR(e.target.value)) || 0 })}
+                                                                value={line.stop.replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ".")}
+                                                                onChange={(e) => updateLine(line.id, { stop: formatLivePTBR(e.target.value) })}
                                                                 className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none"
                                                             />
                                                         </div>
@@ -341,7 +348,7 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
                                                                 <input
                                                                     type="text"
                                                                     placeholder="Cotação Ref."
-                                                                    value={line.price.toString().replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ".")}
+                                                                    value={line.price === 0 ? '' : line.price.toString().replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ".")}
                                                                     onChange={(e) => updateLine(line.id, { price: parseFloat(parsePTBR(e.target.value)) || 0 }, true)}
                                                                     className="w-full bg-white border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-xs font-bold text-slate-700 focus:border-red-300 outline-none transition-all"
                                                                 />
