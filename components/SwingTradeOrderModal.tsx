@@ -5,6 +5,7 @@ import { copyAndOpenOutlook, generateOrderEmailHtml, generateOrderEmailSubject, 
 
 interface SwingTradeOrderModalProps {
     assets: SwingTradeAsset[];
+    mode?: 'entry' | 'exchange';
     userEmail?: string;
     onClose: () => void;
     onConfirm: (ordersData: any[]) => void;
@@ -30,9 +31,10 @@ interface SelectedClient {
     cc?: string;
 }
 
-const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, userEmail, onClose, onConfirm }) => {
+const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mode = 'entry', userEmail, onClose, onConfirm }) => {
     const [step, setStep] = useState<'config' | 'clients' | 'dispatch'>('config');
     const [orderLines, setOrderLines] = useState<OrderLineState[]>([]);
+    const [exitLines, setExitLines] = useState<OrderLineState[]>([]);
     const [selectedClients, setSelectedClients] = useState<SelectedClient[]>([]);
 
     useEffect(() => {
@@ -49,8 +51,9 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, use
         })));
     }, [assets]);
 
-    const updateLine = (id: string, updates: Partial<OrderLineState>) => {
-        setOrderLines(prev => prev.map(line => {
+    const updateLine = (id: string, updates: Partial<OrderLineState>, isExit: boolean = false) => {
+        const setter = isExit ? setExitLines : setOrderLines;
+        setter(prev => prev.map(line => {
             if (line.id !== id) return line;
             const updated = { ...line, ...updates };
 
@@ -78,18 +81,37 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, use
         }));
     };
 
+    const addExitLine = () => {
+        const newLine: OrderLineState = {
+            id: Math.random().toString(36).substr(2, 9),
+            ticker: '',
+            type: 'Venda',
+            price: 0,
+            mode: 'Quantidade',
+            quantity: '',
+            financial: '',
+            target: 0,
+            stop: 0
+        };
+        setExitLines([...exitLines, newLine]);
+    };
+
+    const removeExitLine = (id: string) => {
+        setExitLines(prev => prev.filter(l => l.id !== id));
+    };
+
     const handleConfirmOrders = () => {
         setStep('dispatch');
     };
 
     const handleSendEmail = async (client: SelectedClient) => {
         const subject = generateOrderEmailSubject({ conta: client.conta, id: client.id });
-        const html = generateOrderEmailHtml({ nome: client.nome }, orderLines);
-        const plainText = generateOrderEmailPlainText({ nome: client.nome }, orderLines);
 
-        // Use client.cc if available, otherwise fallback to userEmail (assessor email)
+        // Pass both sets of lines if in exchange mode
+        const html = generateOrderEmailHtml({ nome: client.nome }, orderLines, mode === 'exchange' ? exitLines : undefined);
+        const plainText = generateOrderEmailPlainText({ nome: client.nome }, orderLines, mode === 'exchange' ? exitLines : undefined);
+
         const ccEmail = client.cc || userEmail;
-
         await copyAndOpenOutlook(client.email || '', subject, html, plainText, ccEmail);
     };
 
@@ -112,11 +134,10 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, use
                 <div className="flex justify-between items-center mb-8">
                     <div>
                         <h3 className="text-sm font-bold text-slate-800 uppercase tracking-widest">
-                            {step === 'config' ? `Configurar Swing Trade (${assets.length} Ativos)` :
-                                step === 'clients' ? 'Selecionar Clientes para Disparo' : 'Finalizar e Enviar para Outlook'}
+                            {mode === 'exchange' ? 'Troca de Ativo(s)' : 'Nova Entrada Swing Trade'}
                         </h3>
                         <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">
-                            Passo {step === 'config' ? '1' : step === 'clients' ? '2' : '3'} de 3
+                            Passo {step === 'config' ? '1' : step === 'clients' ? '2' : '3'} de 3 - {orderLines.length} Ativos
                         </p>
                     </div>
                     <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-all">
@@ -127,65 +148,110 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, use
                 <div className="flex-1 overflow-y-auto pr-2">
                     {step === 'config' ? (
                         <div className="space-y-12">
-                            {orderLines.map((line) => (
-                                <div key={line.id} className="border-b border-slate-100 pb-12 last:border-0">
-                                    <div className="grid grid-cols-1 md:grid-cols-6 gap-6 mb-8">
-                                        <div className="col-span-1">
-                                            <label className="block text-[11px] font-bold text-slate-700 mb-2">Ativo</label>
-                                            <input type="text" readOnly value={line.ticker} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm font-bold text-slate-400 focus:outline-none" />
-                                        </div>
-                                        <div className="col-span-1">
-                                            <label className="block text-[11px] font-bold text-slate-700 mb-2">Tipo</label>
-                                            <select value={line.type} onChange={(e) => updateLine(line.id, { type: e.target.value as any })} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all cursor-pointer">
-                                                <option value="Compra">Compra</option>
-                                                <option value="Venda">Venda</option>
-                                                <option value="L&S">L&S</option>
-                                            </select>
-                                        </div>
-                                        <div className="col-span-1">
-                                            <label className="block text-[11px] font-bold text-slate-700 mb-2">Cotação</label>
-                                            <div className="relative">
-                                                <span className="absolute left-4 top-3.5 text-slate-400 text-xs font-bold">R$</span>
-                                                <input type="number" value={line.price} onChange={(e) => updateLine(line.id, { price: parseFloat(e.target.value) || 0 })} className="w-full bg-slate-50 border border-slate-100 rounded-xl pl-10 pr-4 py-3 text-sm font-bold text-slate-700 outline-none" />
+                            {/* SECTION: Ativos de Entrada */}
+                            <div>
+                                <div className="flex items-center gap-3 mb-6">
+                                    <div className="h-6 w-1 bg-emerald-500 rounded-full"></div>
+                                    <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-widest">Ativos de Entrada (Novas Recomendações)</h4>
+                                </div>
+                                <div className="space-y-8">
+                                    {orderLines.map((line) => (
+                                        <div key={line.id} className="bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
+                                            <div className="grid grid-cols-1 md:grid-cols-6 gap-6">
+                                                <div className="col-span-1">
+                                                    <label className="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Ativo</label>
+                                                    <input type="text" readOnly value={line.ticker} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-400 focus:outline-none" />
+                                                </div>
+                                                <div className="col-span-1">
+                                                    <label className="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Tipo</label>
+                                                    <select value={line.type} onChange={(e) => updateLine(line.id, { type: e.target.value as any })} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all cursor-pointer">
+                                                        <option value="Compra">Compra</option>
+                                                        <option value="Venda">Venda</option>
+                                                        <option value="L&S">L&S</option>
+                                                    </select>
+                                                </div>
+                                                <div className="col-span-1">
+                                                    <label className="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Preço</label>
+                                                    <div className="relative">
+                                                        <span className="absolute left-4 top-3.5 text-slate-400 text-xs font-bold">R$</span>
+                                                        <input type="number" value={line.price} onChange={(e) => updateLine(line.id, { price: parseFloat(e.target.value) || 0 })} className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm font-bold text-slate-700 outline-none" />
+                                                    </div>
+                                                </div>
+                                                <div className="col-span-1">
+                                                    <label className="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Quantidade</label>
+                                                    <input type="number" placeholder="0" value={line.quantity} onChange={(e) => updateLine(line.id, { quantity: e.target.value })} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all" />
+                                                </div>
+                                                <div className="col-span-2">
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div>
+                                                            <label className="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Alvo</label>
+                                                            <input type="number" value={line.target} onChange={(e) => updateLine(line.id, { target: parseFloat(e.target.value) || 0 })} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none" />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Stop</label>
+                                                            <input type="number" value={line.stop} onChange={(e) => updateLine(line.id, { stop: parseFloat(e.target.value) || 0 })} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none" />
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
-                                        <div className="col-span-1">
-                                            <label className="block text-[11px] font-bold text-slate-700 mb-2">Modo</label>
-                                            <select value={line.mode} onChange={(e) => updateLine(line.id, { mode: e.target.value as any })} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all cursor-pointer">
-                                                <option value="Quantidade">Quantidade</option>
-                                                <option value="Financeiro">Financeiro</option>
-                                            </select>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* SECTION: Ativos de Saída (Only for Exchange Mode) */}
+                            {mode === 'exchange' && (
+                                <div className="pt-8 border-t border-slate-100">
+                                    <div className="flex items-center justify-between mb-6">
+                                        <div className="flex items-center gap-3">
+                                            <div className="h-6 w-1 bg-red-500 rounded-full"></div>
+                                            <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-widest">Ativos de Saída (Encerrar Posição)</h4>
                                         </div>
-                                        <div className="col-span-1">
-                                            <label className="block text-[11px] font-bold text-slate-700 mb-2">Quantidade</label>
-                                            <input type="number" disabled={line.mode === 'Financeiro'} placeholder="0" value={line.quantity} onChange={(e) => updateLine(line.id, { quantity: e.target.value })} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all disabled:bg-slate-50 disabled:text-slate-400" />
-                                        </div>
-                                        <div className="col-span-1">
-                                            <label className="block text-[11px] font-bold text-slate-700 mb-2">Financeiro</label>
-                                            <div className="relative">
-                                                <span className="absolute left-4 top-3.5 text-slate-400 text-xs font-bold">R$</span>
-                                                <input type="number" disabled={line.mode === 'Quantidade'} placeholder="0,00" value={line.financial} onChange={(e) => updateLine(line.id, { financial: e.target.value })} className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all disabled:bg-slate-50 disabled:text-slate-400" />
-                                            </div>
-                                        </div>
+                                        <button onClick={addExitLine} className="flex items-center gap-2 text-primary font-black text-[10px] uppercase hover:brightness-125 transition-all">
+                                            <span className="material-symbols-outlined text-sm">add_circle</span>
+                                            Adicionar Ativo de Saída
+                                        </button>
                                     </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-6 gap-6">
-                                        <div className="col-span-2">
-                                            <label className="block text-[11px] font-bold text-slate-700 mb-2">Alvo</label>
-                                            <div className="relative">
-                                                <span className="absolute left-4 top-3.5 text-slate-400 text-xs font-bold">Ex: R$</span>
-                                                <input type="number" value={line.target} onChange={(e) => updateLine(line.id, { target: parseFloat(e.target.value) || 0 })} className="w-full bg-white border border-slate-200 rounded-xl pl-16 pr-4 py-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all" />
+
+                                    <div className="space-y-4">
+                                        {exitLines.length === 0 ? (
+                                            <div className="py-12 bg-slate-50/30 border-2 border-dashed border-slate-100 rounded-2xl text-center">
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Nenhum ativo de saída adicionado</p>
+                                                <button onClick={addExitLine} className="mt-4 text-xs font-black text-primary underline">Clique para adicionar</button>
                                             </div>
-                                        </div>
-                                        <div className="col-span-2">
-                                            <label className="block text-[11px] font-bold text-slate-700 mb-2">Stop</label>
-                                            <div className="relative">
-                                                <span className="absolute left-4 top-3.5 text-slate-400 text-xs font-bold">Ex: R$</span>
-                                                <input type="number" value={line.stop} onChange={(e) => updateLine(line.id, { stop: parseFloat(e.target.value) || 0 })} className="w-full bg-white border border-slate-200 rounded-xl pl-16 pr-4 py-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all" />
-                                            </div>
-                                        </div>
+                                        ) : (
+                                            exitLines.map((line) => (
+                                                <div key={line.id} className="bg-red-50/10 p-6 rounded-2xl border border-red-100/50 flex items-end gap-6 animate-in slide-in-from-left-4 duration-300">
+                                                    <div className="flex-1 grid grid-cols-4 gap-6">
+                                                        <div>
+                                                            <label className="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Ticker Saída</label>
+                                                            <input type="text" placeholder="PETR4" value={line.ticker} onChange={(e) => updateLine(line.id, { ticker: e.target.value.toUpperCase() }, true)} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-black text-slate-700 focus:border-red-300 outline-none transition-all uppercase" />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Preço Estimado</label>
+                                                            <input type="number" placeholder="0.00" value={line.price || ''} onChange={(e) => updateLine(line.id, { price: parseFloat(e.target.value) || 0 }, true)} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:border-red-300 outline-none transition-all" />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Quantidade</label>
+                                                            <input type="number" placeholder="0" value={line.quantity} onChange={(e) => updateLine(line.id, { quantity: e.target.value }, true)} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:border-red-300 outline-none transition-all" />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Financeiro Est.</label>
+                                                            <div className="relative">
+                                                                <span className="absolute left-4 top-3.5 text-slate-400 text-xs font-bold">R$</span>
+                                                                <input type="number" value={line.financial} readOnly className="w-full bg-slate-50 border border-slate-100 rounded-xl pl-10 pr-4 py-3 text-sm font-bold text-slate-400 outline-none" />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <button onClick={() => removeExitLine(line.id)} className="h-11 w-11 flex items-center justify-center bg-red-50 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all">
+                                                        <span className="material-symbols-outlined">delete</span>
+                                                    </button>
+                                                </div>
+                                            ))
+                                        )}
                                     </div>
                                 </div>
-                            ))}
+                            )}
                         </div>
                     ) : (
                         <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">

@@ -1,8 +1,7 @@
 
-export const generateOrderEmailHtml = (client: { nome: string }, orders: any[]) => {
-    const renderTableRows = () => {
-        return orders.map((order) => {
-            // Adapt from different order types (SwingTrade vs Regular)
+export const generateOrderEmailHtml = (client: { nome: string }, orders: any[], exitOrders?: any[]) => {
+    const renderTableRows = (items: any[]) => {
+        return items.map((order) => {
             const side = order.side || order.type;
             const nature = side === 'Venda' ? 'Venda' : 'Compra';
             const qty = order.value || order.quantity || '0';
@@ -46,11 +45,32 @@ export const generateOrderEmailHtml = (client: { nome: string }, orders: any[]) 
         }).join('');
     };
 
+    const hasExchange = exitOrders && exitOrders.length > 0;
+    const bodyTitle = hasExchange ? 'troca de ativos' : 'execução das ordens';
+
     return `
     <div style="font-family: Arial, sans-serif; font-size: 14px; color: #000000; background-color: #ffffff;">
       <p style="margin-bottom: 16px;">Olá ${client.nome || 'Cliente'}, tudo bem?</p>
-      <p style="margin-bottom: 16px;">Conforme conversamos, peço seu ‘de acordo’ para execução das ordens abaixo:</p>
+      <p style="margin-bottom: 16px;">Conforme conversamos, peço seu ‘de acordo’ para a ${bodyTitle} abaixo:</p>
       
+      ${hasExchange ? `
+      <p style="margin-bottom: 8px; font-weight: bold; color: #cc0000;">PARA SAÍDA (VENDA):</p>
+      <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; border: 1px solid #000000; font-family: Arial; font-size: 12px; margin-bottom: 20px;">
+        <thead>
+          <tr style="background-color: #f2f2f2; text-align: left;">
+            <th style="border: 1px solid #000000; padding: 6px;">Natureza</th>
+            <th style="border: 1px solid #000000; padding: 6px;">Quantidade</th>
+            <th style="border: 1px solid #000000; padding: 6px;">Ativo</th>
+            <th style="border: 1px solid #000000; padding: 6px;">Preço Est.</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${renderTableRows(exitOrders)}
+        </tbody>
+      </table>
+      <p style="margin-bottom: 8px; font-weight: bold; color: #27a673;">PARA ENTRADA (COMPRA):</p>
+      ` : ''}
+
       <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; border: 1px solid #000000; font-family: Arial; font-size: 12px;">
         <thead>
           <tr style="background-color: #f2f2f2; text-align: left;">
@@ -61,7 +81,7 @@ export const generateOrderEmailHtml = (client: { nome: string }, orders: any[]) 
           </tr>
         </thead>
         <tbody>
-          ${renderTableRows()}
+          ${renderTableRows(orders)}
         </tbody>
       </table>
 
@@ -87,8 +107,8 @@ export const generateOrderEmailSubject = (client: { conta: string, id: string })
     return `Aprovação de Ordem | CC: ${client.conta || '000000'} / COD: ${codId}`;
 };
 
-export const generateOrderEmailPlainText = (client: { nome: string }, orders: any[]) => {
-    const orderLines = orders.map((order) => {
+export const generateOrderEmailPlainText = (client: { nome: string }, orders: any[], exitOrders?: any[]) => {
+    const formatLine = (order: any) => {
         const side = order.side || order.type;
         const nature = side === 'Venda' ? 'Venda' : 'Compra';
         const qty = order.value || order.quantity || '0';
@@ -96,15 +116,25 @@ export const generateOrderEmailPlainText = (client: { nome: string }, orders: an
             (order.price ? `R$ ${order.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'MERCADO');
 
         return `${nature} de ${qty} quantidades de ${order.ticker} a preço ${price}`;
-    }).join('\n');
+    };
+
+    const orderLines = orders.map(formatLine).join('\n');
+    const exitLinesText = exitOrders ? exitOrders.map(formatLine).join('\n') : '';
 
     const stopLines = orders.filter(o => (o.stop && o.stop > 0) || (o.target && o.target > 0))
         .map(o => `${o.ticker} - STOP: ${o.stop?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00'} / ALVO: ${o.target?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00'} - VAC`)
         .join('\n');
 
     let body = `Olá ${client.nome || 'Cliente'}, tudo bem?\n\n`;
-    body += `Conforme conversamos, peço seu ‘de acordo’ para execução das ordens abaixo:\n\n`;
-    body += `${orderLines}\n\n`;
+
+    if (exitOrders && exitOrders.length > 0) {
+        body += `Conforme conversamos, peço seu ‘de acordo’ para a troca de ativos abaixo:\n\n`;
+        body += `SAÍDA (VENDA):\n${exitLinesText}\n\n`;
+        body += `ENTRADA (COMPRA):\n${orderLines}\n\n`;
+    } else {
+        body += `Conforme conversamos, peço seu ‘de acordo’ para execução das ordens abaixo:\n\n`;
+        body += `${orderLines}\n\n`;
+    }
 
     if (stopLines) {
         body += `E posicionar as ordens stop abaixo:\n\n`;

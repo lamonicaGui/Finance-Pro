@@ -17,6 +17,7 @@ const SwingTradeGenerator: React.FC<SwingTradeGeneratorProps> = ({ userEmail }) 
     const [rawText, setRawText] = useState<string | null>(null);
     const [showDebug, setShowDebug] = useState(false);
     const [orderAssets, setOrderAssets] = useState<SwingTradeAsset[]>([]);
+    const [modalMode, setModalMode] = useState<'entry' | 'exchange'>('entry');
 
     // Load from Supabase on mount and subscribe to changes
     useEffect(() => {
@@ -224,7 +225,7 @@ const SwingTradeGenerator: React.FC<SwingTradeGeneratorProps> = ({ userEmail }) 
                                                 <td className="px-4 py-5 text-center font-black text-emerald-500">{dyn.upside}</td>
                                                 <td className="px-4 py-5 text-center font-black text-red-400">{dyn.downside}</td>
                                                 <td className="px-6 py-5 text-right">
-                                                    <button onClick={() => setOrderAssets([asset])} className="h-10 w-10 flex items-center justify-center text-slate-300 hover:text-primary dark:hover:text-primary transition-all rounded-xl hover:bg-primary/5">
+                                                    <button onClick={() => { setModalMode('entry'); setOrderAssets([asset]); }} className="h-10 w-10 flex items-center justify-center text-slate-300 hover:text-primary dark:hover:text-primary transition-all rounded-xl hover:bg-primary/5">
                                                         <span className="material-symbols-outlined">send</span>
                                                     </button>
                                                 </td>
@@ -249,16 +250,30 @@ const SwingTradeGenerator: React.FC<SwingTradeGeneratorProps> = ({ userEmail }) 
                 </div>
                 <div className="flex gap-4">
                     {assets.some(a => a.selected) && (
-                        <button
-                            onClick={() => {
-                                const selected = assets.filter(a => a.selected);
-                                setOrderAssets(selected);
-                            }}
-                            className="bg-slate-900 dark:bg-primary px-8 py-4 rounded-[1.25rem] text-[11px] font-black text-primary dark:text-white shadow-2xl hover:scale-105 transition-all uppercase tracking-[0.2em] flex items-center gap-3 animate-in zoom-in duration-300"
-                        >
-                            <span className="material-symbols-outlined text-lg">bolt</span>
-                            Envio de Ordem
-                        </button>
+                        <>
+                            <button
+                                onClick={() => {
+                                    const selected = assets.filter(a => a.selected);
+                                    setModalMode('entry');
+                                    setOrderAssets(selected);
+                                }}
+                                className="bg-[#27a673] px-8 py-4 rounded-[1.25rem] text-[11px] font-black text-white shadow-2xl hover:scale-105 transition-all uppercase tracking-[0.2em] flex items-center gap-3 animate-in zoom-in duration-300"
+                            >
+                                <span className="material-symbols-outlined text-lg">add_circle</span>
+                                Nova Entrada
+                            </button>
+                            <button
+                                onClick={() => {
+                                    const selected = assets.filter(a => a.selected);
+                                    setModalMode('exchange');
+                                    setOrderAssets(selected);
+                                }}
+                                className="bg-slate-900 dark:bg-primary px-8 py-4 rounded-[1.25rem] text-[11px] font-black text-primary dark:text-white shadow-2xl hover:scale-105 transition-all uppercase tracking-[0.2em] flex items-center gap-3 animate-in zoom-in duration-300"
+                            >
+                                <span className="material-symbols-outlined text-lg">swap_horiz</span>
+                                Troca de Ativo(s)
+                            </button>
+                        </>
                     )}
                     {assets.length > 0 && (
                         <button onClick={fetchPrices} disabled={isSyncing} className="bg-white dark:bg-card-dark border-2 border-primary/20 dark:border-primary/40 px-8 py-4 rounded-[1.25rem] text-[11px] font-black text-primary shadow-xl hover:scale-105 transition-all uppercase flex items-center gap-3 disabled:opacity-50">
@@ -306,6 +321,7 @@ const SwingTradeGenerator: React.FC<SwingTradeGeneratorProps> = ({ userEmail }) 
             {orderAssets.length > 0 && (
                 <SwingTradeOrderModal
                     assets={orderAssets}
+                    mode={modalMode}
                     userEmail={userEmail}
                     onClose={() => setOrderAssets([])}
                     onConfirm={(data) => {
