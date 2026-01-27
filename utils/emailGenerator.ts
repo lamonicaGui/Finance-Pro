@@ -1,5 +1,5 @@
 
-export const generateOrderEmailHtml = (client: { nome: string }, orders: any[], exitOrders?: any[]) => {
+export const generateOrderEmailHtml = (client: { nome: string, conta: string, id: string }, orders: any[], exitOrders?: any[]) => {
     const renderTableRows = (items: any[]) => {
         return items.map((order) => {
             const side = order.side || order.type;
@@ -64,6 +64,7 @@ export const generateOrderEmailHtml = (client: { nome: string }, orders: any[], 
     return `
     <div style="font-family: Arial, sans-serif; font-size: 14px; color: #000000; background-color: #ffffff;">
       <p style="margin-bottom: 16px;">Olá ${client.nome || 'Cliente'}, tudo bem?</p>
+      <p style="margin-bottom: 8px;"><strong>CC:</strong> ${client.conta || '---'} / <strong>COD:</strong> ${client.id || '---'}</p>
       <p style="margin-bottom: 16px;">Conforme conversamos, peço seu ‘de acordo’ para a ${bodyTitle} abaixo:</p>
       
       ${hasExchange ? `
@@ -120,7 +121,7 @@ export const generateOrderEmailSubject = (client: { conta: string, id: string })
     return `Aprovação de Ordem | CC: ${client.conta || '000000'} / COD: ${codId}`;
 };
 
-export const generateOrderEmailPlainText = (client: { nome: string }, orders: any[], exitOrders?: any[]) => {
+export const generateOrderEmailPlainText = (client: { nome: string, conta: string, id: string }, orders: any[], exitOrders?: any[]) => {
     const formatLine = (order: any) => {
         const side = order.side || order.type;
         const nature = side === 'Venda' ? 'Venda' : 'Compra';
@@ -153,6 +154,7 @@ export const generateOrderEmailPlainText = (client: { nome: string }, orders: an
         .join('\n');
 
     let body = `Olá ${client.nome || 'Cliente'}, tudo bem?\n\n`;
+    body += `CC: ${client.conta || '---'} / COD: ${client.id || '---'}\n\n`;
 
     if (exitOrders && exitOrders.length > 0) {
         body += `Conforme conversamos, peço seu ‘de acordo’ para a troca de ativos abaixo:\n\n`;
@@ -210,7 +212,7 @@ export const generateHawkOrderEmailSubject = (client: { conta: string, id: strin
     return `Aprovação de Ordem Hawk Strategy | CC: ${client.conta || '000000'} / COD: ${codId}`;
 };
 
-export const generateHawkOrderEmailHtml = (client: { nome: string }, orders: any[]) => {
+export const generateHawkOrderEmailHtml = (client: { nome: string, conta: string, id: string }, orders: any[]) => {
     const renderOrderBlocks = () => {
         return orders.map((order) => {
             return `
@@ -230,6 +232,7 @@ export const generateHawkOrderEmailHtml = (client: { nome: string }, orders: any
     return `
     <div style="font-family: Arial, sans-serif; font-size: 14px; color: #000000; background-color: #ffffff;">
       <p style="margin-bottom: 16px;">Prezado ${client.nome || 'cliente'},</p>
+      <p style="margin-bottom: 8px;"><strong>CC:</strong> ${client.conta || '---'} / <strong>COD:</strong> ${client.id || '---'}</p>
       <p style="margin-bottom: 16px;">Conforme conversamos, peço seu ‘de acordo’ para execução das ordens abaixo:</p>
       
       ${renderOrderBlocks()}
@@ -241,7 +244,7 @@ export const generateHawkOrderEmailHtml = (client: { nome: string }, orders: any
   `;
 };
 
-export const generateHawkOrderEmailPlainText = (client: { nome: string }, orders: any[]) => {
+export const generateHawkOrderEmailPlainText = (client: { nome: string, conta: string, id: string }, orders: any[]) => {
     const orderBlocks = orders.map((order) => {
         return `Natureza da aplicação: Compra – Montagem de operação
 Financeiro: R$ ${parseFloat(order.financial).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
@@ -254,6 +257,7 @@ Vencimento: ${order.expiration}`;
     }).join('\n\n');
 
     let body = `Prezado ${client.nome || 'cliente'},\n\n`;
+    body += `CC: ${client.conta || '---'} / COD: ${client.id || '---'}\n\n`;
     body += `Conforme conversamos, peço seu ‘de acordo’ para execução das ordens abaixo:\n\n`;
     body += `${orderBlocks}\n\n`;
     body += `Aguardo confirmação.\n`;

@@ -78,6 +78,50 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
         })));
     }, [assets]);
 
+    // Live Quote Fetching for Exit Lines
+    useEffect(() => {
+        const fetchExitPrices = async () => {
+            const hasEmptyPrices = exitLines.some(l => l.ticker && l.price === 0);
+            if (!hasEmptyPrices) return;
+
+            const updatedExitLines = [...exitLines];
+            let changed = false;
+
+            await Promise.all(exitLines.map(async (line, idx) => {
+                if (line.ticker && line.price === 0) {
+                    try {
+                        const yahooTicker = line.ticker.includes('/') ? line.ticker.split('/')[0] + '.SA' : (line.ticker.endsWith('.SA') ? line.ticker : `${line.ticker}.SA`);
+                        const res = await fetch(`/api/yahoo/v8/finance/chart/${yahooTicker}?interval=1d&range=1d`);
+                        if (res.ok) {
+                            const data = await res.json();
+                            const price = data.chart?.result?.[0]?.meta?.regularMarketPrice;
+                            if (price) {
+                                updatedExitLines[idx].price = price;
+                                changed = true;
+
+                                // Also update all clients' exit lines for this asset
+                                setSelectedClients(prev => prev.map(client => ({
+                                    ...client,
+                                    exitLines: client.exitLines.map(cl => {
+                                        if (cl.id === line.id) return { ...cl, price: price };
+                                        return cl;
+                                    })
+                                })));
+                            }
+                        }
+                    } catch (e) {
+                        console.warn(`Erro quote exit ${line.ticker}:`, e);
+                    }
+                }
+            }));
+
+            if (changed) setExitLines(updatedExitLines);
+        };
+
+        const timeoutId = setTimeout(fetchExitPrices, 1000); // Debounce
+        return () => clearTimeout(timeoutId);
+    }, [exitLines.map(l => l.ticker).join(',')]);
+
     const updateLine = (id: string, updates: Partial<OrderLineState>, isExit: boolean = false) => {
         const setter = isExit ? setExitLines : setOrderLines;
         setter(prev => prev.map(line => {
@@ -192,8 +236,8 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
         const mappedOrders = client.orders.map(line => ({ ...line, mode: 'Mercado' }));
         const mappedExit = client.exitLines.map(line => ({ ...line, mode: 'Mercado' }));
 
-        const html = generateOrderEmailHtml({ nome: client.nome }, mappedOrders, mode === 'exchange' ? mappedExit : undefined);
-        const plainText = generateOrderEmailPlainText({ nome: client.nome }, mappedOrders, mode === 'exchange' ? mappedExit : undefined);
+        const html = generateOrderEmailHtml({ nome: client.nome, conta: client.conta, id: client.id }, mappedOrders, mode === 'exchange' ? mappedExit : undefined);
+        const plainText = generateOrderEmailPlainText({ nome: client.nome, conta: client.conta, id: client.id }, mappedOrders, mode === 'exchange' ? mappedExit : undefined);
 
         const ccEmail = client.cc || userEmail;
         await copyAndOpenOutlook(client.email || '', subject, html, plainText, ccEmail);
@@ -420,11 +464,11 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
                                                                 <div>
                                                                     <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest leading-none">Cotação de Referência</label>
                                                                     <div className="relative">
-                                                                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-white uppercase bg-slate-800 px-2 py-0.5 rounded shadow-sm border border-slate-700">MKT</div>
+                                                                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-white uppercase bg-slate-800 px-2 py-0.5 rounded shadow-sm border border-slate-700">ATUAL</div>
                                                                         <input
                                                                             type="text"
                                                                             placeholder="0,00"
-                                                                            value={line.price === 0 ? '' : line.price.toString().replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ".")}
+                                                                            value={line.price === 0 ? '' : line.price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                                             onChange={(e) => updateLine(line.id, { price: parseFloat(parsePTBR(e.target.value)) || 0 }, true)}
                                                                             className="w-full bg-slate-50/50 border border-slate-200 rounded-xl pl-16 pr-4 py-3 text-sm font-black text-slate-800 focus:border-red-400 focus:bg-white outline-none transition-all"
                                                                         />
