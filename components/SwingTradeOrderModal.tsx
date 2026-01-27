@@ -233,8 +233,12 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
                 <div className="flex-1 overflow-y-auto pr-2">
                     {step === 'clients' ? (
                         <div className="space-y-10 animate-in fade-in slide-in-from-right-4 duration-500">
-                            <div className="bg-slate-50 p-10 rounded-[2rem] border border-slate-100 shadow-inner relative overflow-hidden group">
-                                <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full -mr-32 -mt-32 blur-3xl transition-all group-hover:bg-primary/10"></div>
+                            <div className="bg-slate-50 p-10 rounded-[2rem] border border-slate-100 shadow-inner relative group">
+                                {/* Decoration Container - handles clipping of blur circles without affecting dropdowns */}
+                                <div className="absolute inset-0 overflow-hidden rounded-[2rem] pointer-events-none">
+                                    <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full -mr-32 -mt-32 blur-3xl transition-all group-hover:bg-primary/10"></div>
+                                </div>
+
                                 <div className="relative z-10">
                                     <div className="flex items-center gap-3 mb-6">
                                         <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white shadow-lg shadow-emerald-100">
