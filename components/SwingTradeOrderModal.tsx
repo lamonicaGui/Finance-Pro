@@ -108,8 +108,7 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
                         const qRaw = f / updated.price;
                         updated.quantity = (Math.floor(qRaw / 100) * 100).toString();
                     }
-                    // Re-calculate accurate financial after rounding quantity
-                    updated.financial = formatFinanceiro(parseFloat(updated.quantity) * updated.price);
+                    // Remove the line that overwrote updated.financial here
                 } else {
                     updated.quantity = '0';
                 }
@@ -223,11 +222,12 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
                                                 </div>
                                                 <div className="col-span-1">
                                                     <label className="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Tipo</label>
-                                                    <select value={line.type} onChange={(e) => updateLine(line.id, { type: e.target.value as any })} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all cursor-pointer">
-                                                        <option value="Compra">Compra</option>
-                                                        <option value="Venda">Venda</option>
-                                                        <option value="L&S">L&S</option>
-                                                    </select>
+                                                    <input
+                                                        type="text"
+                                                        readOnly
+                                                        value={line.type}
+                                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-400 focus:outline-none"
+                                                    />
                                                 </div>
                                                 <div className="col-span-1">
                                                     <label className="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Preço</label>
