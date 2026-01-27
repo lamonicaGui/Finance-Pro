@@ -1,10 +1,17 @@
 
+const formatQty = (val: any) => {
+    if (val === undefined || val === null || val === '') return '0';
+    const num = typeof val === 'string' ? parseFloat(val.replace(/\./g, '').replace(',', '.')) : val;
+    if (isNaN(num)) return val;
+    return new Intl.NumberFormat('pt-BR').format(num);
+};
+
 export const generateOrderEmailHtml = (client: { nome: string, conta: string, id: string }, orders: any[], exitOrders?: any[]) => {
     const renderTableRows = (items: any[]) => {
         return items.map((order) => {
             const side = order.side || order.type;
             const nature = side === 'Venda' ? 'Venda' : 'Compra';
-            const qty = order.value || order.quantity || '0';
+            const qty = formatQty(order.value || order.quantity || '0');
             const price = order.mode === 'Mercado' ? 'Mercado' :
                 (order.price ? `R$ ${order.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'Mercado');
 
@@ -125,7 +132,7 @@ export const generateOrderEmailPlainText = (client: { nome: string, conta: strin
     const formatLine = (order: any) => {
         const side = order.side || order.type;
         const nature = side === 'Venda' ? 'Venda' : 'Compra';
-        const qty = order.value || order.quantity || '0';
+        const qty = formatQty(order.value || order.quantity || '0');
         const price = order.mode === 'Mercado' ? 'MERCADO' :
             (order.price ? `R$ ${order.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'MERCADO');
 
