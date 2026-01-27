@@ -42,17 +42,31 @@ export const parseSwingTradePdf = async (file: File): Promise<SwingTradeParseRes
     try {
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        let fullText = "";
 
-        // Extração unificada p/ evitar quebras de palavras (Pág 1)
-        const page = await pdf.getPage(1);
-        const textContent = await page.getTextContent();
+        // Percorrer todas as páginas para não perder recomendações
+        for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const textContent = await page.getTextContent();
 
-        // Juntar itens com espaço (igual ao Hawk que funciona)
-        const rawText = textContent.items.map((item: any) => item.str).join(' ');
+            // Ordenar por coordenadas Y (descendente) e depois X (ascendente)
+            // Isso garante que o texto seja reconstruído na ordem correta da linha
+            const items = (textContent.items as any[]).sort((a, b) => {
+                if (Math.abs(a.transform[5] - b.transform[5]) < 2) {
+                    return a.transform[4] - b.transform[4];
+                }
+                return b.transform[5] - a.transform[5];
+            });
+
+            const pageText = items.map((item: any) => item.str).join(' ');
+            fullText += pageText + " \n ";
+        }
+
+        console.log("DEBUG - Texto extraído total (todas as páginas):", fullText.length);
 
         return {
-            assets: extractSwingTradesFromText(rawText),
-            rawText: rawText
+            assets: extractSwingTradesFromText(fullText),
+            rawText: fullText
         };
     } catch (err) {
         console.error("Erro no parser de Swing Trade:", err);
@@ -63,15 +77,12 @@ export const parseSwingTradePdf = async (file: File): Promise<SwingTradeParseRes
 const extractSwingTradesFromText = (text: string): SwingTradeAsset[] => {
     const assets: SwingTradeAsset[] = [];
 
-    // Normalização: Remove quebras mas mantém espaços simples para não quebrar "Top 5"
+    // Normalização: Remove múltiplas quebras mas mantém um espaço simples
     const normalized = text.replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim();
 
     console.log("DEBUG - Iniciando extração. Chars:", normalized.length);
 
     // Identificar blocos de tabela pelos headers exclusivos
-    const activeHeader = "ATIVO CALL ENTRADA OBJETIVO GANHO POTENCIAL STOP PERDA POTENCIAL TEMPO GRÁFICO INÍCIO";
-    const closedHeader = "ATIVO CALL INÍCIO ENCERRAMENTO PREÇO DE ENTRADA PREÇO DE ENCERRAMENTO RETORNO DO CALL TEMPO GRÁFICO";
-
     const activeTableStart = normalized.toUpperCase().indexOf("ATIVO CALL ENTRADA OBJETIVO");
     const closedTableStart = normalized.toUpperCase().indexOf("ATIVO CALL INÍCIO ENCERRAMENTO");
 
@@ -79,17 +90,17 @@ const extractSwingTradesFromText = (text: string): SwingTradeAsset[] => {
 
     /* 
       Regex Refinado para Safra Prospect:
-      1. Ticker ([A-Z0-9/]+)
+      1. Ticker ([A-Z0-9/]{3,20}) -> Suporta L&S tipo CEAB3/GUAR3
       2. Call (Compra|Venda|L&S)
       3. Entrada ([0-9,.]+)
       4. Alvo ([0-9,.]+)
       5. Ganho ([0-9,.\-+%\s]+%) -> suporta " 10% " ou "7,42%"
       6. Stop ([0-9,.]+)
       7. Perda ([0-9,.\-+%\s]+%) -> suporta "- 6,59%"
-      8. Tempo (.*?) -> captura "Top 5", "Diário", etc
+      8. Tempo (Diário|Top Picks|Top 5|Semanal|Grafista|Pivô|.*? - limitado para não comer a data)
       9. Data (\d{2}\/\d{2}\/\d{2,4})
     */
-    const rowRegex = /([A-Z0-9/]{3,15})\s+(Compra|Venda|L&S)\s+([0-9,.]+)\s+([0-9,.]+)\s+([0-9,.\-+%\s]+%)\s+([0-9,.]+)\s+([0-9,.\-+%\s]+%)\s+(.*?)\s+(\d{2}\/\d{2}\/\d{2,4})/gi;
+    const rowRegex = /([A-Z0-9/]{3,20})\s+(Compra|Venda|L&S)\s+([0-9,.]+)\s+([0-9,.]+)\s+([0-9,.\-+%\s]+%)\s+([0-9,.]+)\s+([0-9,.\-+%\s]+%)\s+(Diário|Top Picks|Top 5|Semanal|Grafista|Pivô|.*?)\s+(\d{2}\/\d{2}\/\d{2,4})/gi;
 
     let match;
     while ((match = rowRegex.exec(normalized)) !== null) {
@@ -99,34 +110,29 @@ const extractSwingTradesFromText = (text: string): SwingTradeAsset[] => {
         if (activeTableStart !== -1 && index < activeTableStart) continue;
         if (closedTableStart !== -1 && index > closedTableStart) continue;
 
-        // Tentar identificar se é "Valendo Entrada" por proximidade de texto (opcional e difícil se tudo estiver no topo)
-        // Por padrão, Safra repete ativos em 'Valendo Entrada' no PDF. Se o usuário quiser filtrar, ele vê na tabela.
-        // Vamos checar se o marcador de "Valendo Entrada" existe e se o ativo está próximo a ele no texto visual (difícil aqui).
-        // Decisão: Marcar como "Em Aberto" e deixar o usuário ver o repetido ou usar heurística simples.
-
-        // Heurística: No Safra, "Valendo Entrada" costuma vir DEPOIS de "Em Aberto".
-        // Mas no texto extraído via PDF.js, isso pode variar. 
-        // Vamos ver se o ticker aparece em uma lista de strings pequena logo após o marcador.
-
-        assets.push({
-            id: Math.random().toString(36).substr(2, 9),
-            ticker: match[1].toUpperCase(),
-            type: match[2] as SwingTradeCall,
-            entryPrice: parseFloat(match[3].replace(/\./g, '').replace(',', '.')),
-            targetPrice: parseFloat(match[4].replace(/\./g, '').replace(',', '.')),
-            upside: match[5].trim(),
-            stopPrice: parseFloat(match[6].replace(/\./g, '').replace(',', '.')),
-            downside: match[7].trim(),
-            graphTime: match[8].trim(),
-            startDate: match[9],
-            status: 'Em Aberto' // Default, será refinado se aparecer duplicado ou em seção específica
-        });
+        try {
+            assets.push({
+                id: Math.random().toString(36).substr(2, 9),
+                ticker: match[1].toUpperCase(),
+                type: match[2] as SwingTradeCall,
+                entryPrice: parseFloat(match[3].replace(/\./g, '').replace(',', '.')),
+                targetPrice: parseFloat(match[4].replace(/\./g, '').replace(',', '.')),
+                upside: match[5].trim(),
+                stopPrice: parseFloat(match[6].replace(/\./g, '').replace(',', '.')),
+                downside: match[7].trim(),
+                graphTime: match[8].trim(),
+                startDate: match[9],
+                status: 'Em Aberto'
+            });
+        } catch (e) {
+            console.warn("Erro ao processar linha do match:", match[0], e);
+        }
     }
 
     // Pós-processamento para "Valendo Entrada"
-    // Se um ativo aparece duplicado, a segunda ocorrência costuma ser a da seção seguinte (Valendo Entrada)
     const seen = new Set();
     const finalAssets = assets.map(asset => {
+        // Se já vimos esse ticker antes, a segunda ocorrência costuma ser a da seção "Valendo Entrada"
         if (seen.has(asset.ticker)) {
             return { ...asset, status: 'Valendo Entrada' as SwingTradeStatus };
         }

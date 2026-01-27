@@ -179,52 +179,62 @@ const SwingTradeGenerator: React.FC<SwingTradeGeneratorProps> = ({ userEmail }) 
                 </div>
 
                 <div className="bg-white dark:bg-card-dark rounded-b-[2.5rem] shadow-xl shadow-slate-200/50 dark:shadow-none border-x border-b border-slate-100 dark:border-slate-800 overflow-hidden px-4 pb-6">
-                    <table className="w-full text-left">
-                        <thead>
-                            <tr className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.25em] border-b border-slate-50 dark:border-slate-800">
-                                <th className="px-6 py-6 w-10 text-center">Sel.</th>
-                                <th className="px-6 py-6 font-black">Ativo</th>
-                                <th className="px-6 py-6 text-center font-black">Operação</th>
-                                <th className="px-6 py-6 text-center font-black">Cotação</th>
-                                <th className="px-6 py-6 text-center text-emerald-600 font-black">Ganho Real</th>
-                                <th className="px-6 py-6 text-center text-red-500 font-black">Risco Real</th>
-                                <th className="px-6 py-6 text-right font-black">Ação</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50/50 dark:divide-slate-800/50">
-                            {filtered.length === 0 ? (
-                                <tr><td colSpan={7} className="px-6 py-16 text-center text-slate-300 dark:text-slate-700 italic text-sm font-black uppercase tracking-widest">Nenhuma recomendação</td></tr>
-                            ) : (
-                                filtered.map((asset) => {
-                                    const dyn = calculateDynamicPotential(asset);
-                                    return (
-                                        <tr key={asset.id} className={`${asset.selected ? 'bg-primary/5' : ''} hover:bg-slate-50 dark:hover:bg-slate-800/20 transition-all duration-300 group`}>
-                                            <td className="px-6 py-5 text-center">
-                                                <input type="checkbox" checked={asset.selected} onChange={() => toggleSelect(asset.id)} className="w-5 h-5 rounded-lg border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-primary cursor-pointer focus:ring-primary/20" />
-                                            </td>
-                                            <td className="px-6 py-5">
-                                                <div className="text-sm font-black text-slate-800 dark:text-white uppercase">{asset.ticker}</div>
-                                            </td>
-                                            <td className="px-6 py-5 text-center">
-                                                <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase ${asset.type === 'Compra' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600' : 'bg-red-50 dark:bg-red-500/10 text-red-600'}`}>{asset.type}</span>
-                                            </td>
-                                            <td className="px-6 py-5 text-center font-black text-slate-900 dark:text-slate-200">
-                                                R$ {(asset.currentPrice || asset.entryPrice).toFixed(2)}
-                                                {asset.currentPrice && <div className="text-[8px] text-emerald-500 font-bold uppercase tracking-tighter animate-pulse">LIVE</div>}
-                                            </td>
-                                            <td className="px-6 py-5 text-center font-black text-emerald-500">{dyn.upside}</td>
-                                            <td className="px-6 py-5 text-center font-black text-red-400">{dyn.downside}</td>
-                                            <td className="px-6 py-5 text-right">
-                                                <button onClick={() => setOrderAssets([asset])} className="h-10 w-10 flex items-center justify-center text-slate-300 hover:text-primary dark:hover:text-primary transition-all rounded-xl hover:bg-primary/5">
-                                                    <span className="material-symbols-outlined">send</span>
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    );
-                                })
-                            )}
-                        </tbody>
-                    </table>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left min-w-[1000px]">
+                            <thead>
+                                <tr className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.25em] border-b border-slate-50 dark:border-slate-800">
+                                    <th className="px-6 py-6 w-10 text-center">Sel.</th>
+                                    <th className="px-4 py-6 font-black">Ativo</th>
+                                    <th className="px-4 py-6 text-center font-black">Operação</th>
+                                    <th className="px-4 py-6 text-center font-black">Objetivo</th>
+                                    <th className="px-4 py-6 text-center font-black">Stop</th>
+                                    <th className="px-4 py-6 text-center font-black">Cotação</th>
+                                    <th className="px-4 py-6 text-center text-emerald-600 font-black">Ganho Potencial</th>
+                                    <th className="px-4 py-6 text-center text-red-500 font-black">Perda Potencial</th>
+                                    <th className="px-6 py-6 text-right font-black">Ação</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50/50 dark:divide-slate-800/50">
+                                {filtered.length === 0 ? (
+                                    <tr><td colSpan={9} className="px-6 py-16 text-center text-slate-300 dark:text-slate-700 italic text-sm font-black uppercase tracking-widest">Nenhuma recomendação</td></tr>
+                                ) : (
+                                    filtered.map((asset) => {
+                                        const dyn = calculateDynamicPotential(asset);
+                                        return (
+                                            <tr key={asset.id} className={`${asset.selected ? 'bg-primary/5' : ''} hover:bg-slate-50 dark:hover:bg-slate-800/20 transition-all duration-300 group`}>
+                                                <td className="px-6 py-5 text-center">
+                                                    <input type="checkbox" checked={asset.selected} onChange={() => toggleSelect(asset.id)} className="w-5 h-5 rounded-lg border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-primary cursor-pointer focus:ring-primary/20" />
+                                                </td>
+                                                <td className="px-4 py-5">
+                                                    <div className="text-sm font-black text-slate-800 dark:text-white uppercase truncate max-w-[120px]" title={asset.ticker}>{asset.ticker}</div>
+                                                </td>
+                                                <td className="px-4 py-5 text-center">
+                                                    <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase ${asset.type === 'Compra' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600' : (asset.type === 'Venda' ? 'bg-red-50 dark:bg-red-500/10 text-red-600' : 'bg-blue-50 dark:bg-blue-500/10 text-blue-600')}`}>{asset.type}</span>
+                                                </td>
+                                                <td className="px-4 py-5 text-center font-black text-slate-600 dark:text-slate-400">
+                                                    {asset.targetPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                                                </td>
+                                                <td className="px-4 py-5 text-center font-black text-slate-600 dark:text-slate-400">
+                                                    {asset.stopPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                                                </td>
+                                                <td className="px-4 py-5 text-center font-black text-slate-900 dark:text-slate-200">
+                                                    {(asset.currentPrice || asset.entryPrice).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                                                    {asset.currentPrice && <div className="text-[8px] text-emerald-500 font-bold uppercase tracking-tighter animate-pulse">LIVE</div>}
+                                                </td>
+                                                <td className="px-4 py-5 text-center font-black text-emerald-500">{dyn.upside}</td>
+                                                <td className="px-4 py-5 text-center font-black text-red-400">{dyn.downside}</td>
+                                                <td className="px-6 py-5 text-right">
+                                                    <button onClick={() => setOrderAssets([asset])} className="h-10 w-10 flex items-center justify-center text-slate-300 hover:text-primary dark:hover:text-primary transition-all rounded-xl hover:bg-primary/5">
+                                                        <span className="material-symbols-outlined">send</span>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         );
