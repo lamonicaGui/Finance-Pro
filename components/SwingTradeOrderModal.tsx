@@ -62,6 +62,7 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
     const [orderLines, setOrderLines] = useState<OrderLineState[]>([]);
     const [exitLines, setExitLines] = useState<OrderLineState[]>([]);
     const [selectedClients, setSelectedClients] = useState<SelectedClient[]>([]);
+    const [searchKey, setSearchKey] = useState(0);
 
     useEffect(() => {
         setOrderLines(assets.map(asset => ({
@@ -198,6 +199,16 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
         await copyAndOpenOutlook(client.email || '', subject, html, plainText, ccEmail);
     };
 
+    const handleSendAllEmails = async () => {
+        // Open Outlook for each client sequentially
+        for (const client of selectedClients) {
+            await handleSendEmail(client);
+            // Small delay to help browsers handle multiple window opens if needed
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+        setStep('dispatch');
+    };
+
     const addClient = (client: any) => {
         const mappedClient: SelectedClient = {
             id: client["Cod Bolsa"].toString(),
@@ -210,6 +221,7 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
         };
         if (!selectedClients.find(c => c.id === mappedClient.id)) {
             setSelectedClients([...selectedClients, mappedClient]);
+            setSearchKey(prev => prev + 1); // Reset search field
         }
     };
 
@@ -250,6 +262,7 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
                                         Selecione os clientes que receberão esta recomendação. Você poderá ajustar as alocações individuais no próximo passo.
                                     </p>
                                     <ClientSearch
+                                        key={searchKey}
                                         placeholder="Busque por Nome, Conta ou Sinacor..."
                                         onSelect={addClient}
                                         className="max-w-xl scale-105 origin-left ml-2"
@@ -619,11 +632,11 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
                             </button>
                             {step === 'config' ? (
                                 <button
-                                    onClick={() => setStep('dispatch')}
-                                    className="flex-1 bg-[#102218] px-10 py-4 rounded-xl text-primary text-[12px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:brightness-125 transition-all shadow-xl shadow-slate-200"
+                                    onClick={handleSendAllEmails}
+                                    className="flex-1 bg-[#102218] text-primary h-14 rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] flex items-center justify-center gap-3 hover:brightness-125 transition-all shadow-xl shadow-emerald-900/10 active:scale-[0.98]"
                                 >
-                                    <span className="material-symbols-outlined text-[20px]">send_and_archive</span>
-                                    Revisar Envio
+                                    <span className="material-symbols-outlined text-xl">send_and_archive</span>
+                                    Enviar E-Mail
                                 </button>
                             ) : (
                                 <button
