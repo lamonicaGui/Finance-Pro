@@ -31,6 +31,30 @@ interface SelectedClient {
     cc?: string;
 }
 
+const formatFinanceiro = (val: string | number) => {
+    if (val === '' || val === undefined || val === null) return '';
+    const num = typeof val === 'string' ? parseFloat(val.replace(/\./g, '').replace(',', '.')) : val;
+    if (isNaN(num)) return '';
+    return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num);
+};
+
+const formatLivePTBR = (val: string) => {
+    // Remove previous dots
+    let clean = val.replace(/\./g, '');
+    // Allow only digits and one comma
+    clean = clean.replace(/[^\d,]/g, '');
+    const parts = clean.split(',');
+    if (parts.length > 2) parts.splice(2); // Keep only first comma
+
+    // Format thousand separators
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    return parts.join(',');
+};
+
+const parsePTBR = (val: string) => {
+    return val.replace(/\./g, '').replace(',', '.');
+};
+
 const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mode = 'entry', userEmail, onClose, onConfirm }) => {
     const [step, setStep] = useState<'config' | 'clients' | 'dispatch'>('config');
     const [orderLines, setOrderLines] = useState<OrderLineState[]>([]);
@@ -55,35 +79,48 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
         const setter = isExit ? setExitLines : setOrderLines;
         setter(prev => prev.map(line => {
             if (line.id !== id) return line;
-            const updated = { ...line, ...updates };
 
-            const isBDR = line.ticker.endsWith('31') || line.ticker.endsWith('32') || line.ticker.endsWith('33');
-
-            if (updates.quantity !== undefined && updated.basis === 'Quantidade') {
-                const q = parseFloat(updates.quantity) || 0;
-                updated.financial = (q * updated.price).toFixed(2);
+            // "Preenchimento de um anula o outro" 
+            // If quantity is provided, we set basis to Quantidade and clear financial input before calc
+            // If financial is provided, we set basis to Financeiro and clear quantity input before calc
+            const newUpdates = { ...updates };
+            if (updates.quantity !== undefined) {
+                newUpdates.basis = 'Quantidade';
+            } else if (updates.financial !== undefined) {
+                newUpdates.basis = 'Financeiro';
             }
 
-            if (updates.financial !== undefined && updated.basis === 'Financeiro') {
-                const f = parseFloat(updates.financial) || 0;
+            const updated = { ...line, ...newUpdates };
+            const isBDR = line.ticker.endsWith('31') || line.ticker.endsWith('32') || line.ticker.endsWith('33');
+
+            if (newUpdates.quantity !== undefined && updated.basis === 'Quantidade') {
+                const q = parseFloat(newUpdates.quantity) || 0;
+                updated.financial = formatFinanceiro(q * updated.price);
+            }
+
+            if (newUpdates.financial !== undefined && updated.basis === 'Financeiro') {
+                const fRaw = parsePTBR(newUpdates.financial);
+                const f = parseFloat(fRaw) || 0;
                 if (updated.price > 0) {
                     if (isBDR) {
                         updated.quantity = Math.floor(f / updated.price).toString();
                     } else {
-                        // Stocks and Units: round down to nearest 100
                         const qRaw = f / updated.price;
                         updated.quantity = (Math.floor(qRaw / 100) * 100).toString();
                     }
                     // Re-calculate accurate financial after rounding quantity
-                    updated.financial = (parseFloat(updated.quantity) * updated.price).toFixed(2);
+                    updated.financial = formatFinanceiro(parseFloat(updated.quantity) * updated.price);
+                } else {
+                    updated.quantity = '0';
                 }
             }
 
-            if (updates.basis) {
+            // Sync logic if basis changed but no direct value was passed (e.g. from a select)
+            if (updates.basis && !updates.quantity && !updates.financial) {
                 if (updated.basis === 'Quantidade' && updated.quantity) {
-                    updated.financial = (parseFloat(updated.quantity) * updated.price).toFixed(2);
+                    updated.financial = formatFinanceiro(parseFloat(updated.quantity) * updated.price);
                 } else if (updated.basis === 'Financeiro' && updated.financial) {
-                    const f = parseFloat(updated.financial) || 0;
+                    const f = parseFloat(parsePTBR(updated.financial)) || 0;
                     if (updated.price > 0) {
                         if (isBDR) {
                             updated.quantity = Math.floor(f / updated.price).toString();
@@ -91,6 +128,7 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
                             const qRaw = f / updated.price;
                             updated.quantity = (Math.floor(qRaw / 100) * 100).toString();
                         }
+                        updated.financial = formatFinanceiro(parseFloat(updated.quantity) * updated.price);
                     }
                 }
             }
@@ -212,10 +250,10 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
                                                     <div className="relative">
                                                         <span className="absolute left-4 top-3.5 text-slate-400 text-xs font-bold">R$</span>
                                                         <input
-                                                            type="number"
+                                                            type="text"
                                                             placeholder="0,00"
                                                             value={line.financial}
-                                                            onChange={(e) => updateLine(line.id, { financial: e.target.value, basis: 'Financeiro' })}
+                                                            onChange={(e) => updateLine(line.id, { financial: formatLivePTBR(e.target.value) })}
                                                             className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
                                                         />
                                                     </div>
@@ -224,11 +262,21 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
                                                     <div className="grid grid-cols-2 gap-4">
                                                         <div>
                                                             <label className="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Alvo</label>
-                                                            <input type="number" value={line.target} onChange={(e) => updateLine(line.id, { target: parseFloat(e.target.value) || 0 })} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none" />
+                                                            <input
+                                                                type="text"
+                                                                value={line.target.toString().replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ".")}
+                                                                onChange={(e) => updateLine(line.id, { target: parseFloat(parsePTBR(e.target.value)) || 0 })}
+                                                                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none"
+                                                            />
                                                         </div>
                                                         <div>
                                                             <label className="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Stop</label>
-                                                            <input type="number" value={line.stop} onChange={(e) => updateLine(line.id, { stop: parseFloat(e.target.value) || 0 })} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none" />
+                                                            <input
+                                                                type="text"
+                                                                value={line.stop.toString().replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ".")}
+                                                                onChange={(e) => updateLine(line.id, { stop: parseFloat(parsePTBR(e.target.value)) || 0 })}
+                                                                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none"
+                                                            />
                                                         </div>
                                                     </div>
                                                 </div>
@@ -270,7 +318,13 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
                                                             <label className="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Preço (Mercado)</label>
                                                             <div className="relative">
                                                                 <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-slate-400 uppercase pointer-events-none bg-slate-100 px-1.5 py-0.5 rounded shadow-sm border border-slate-200">MKT</div>
-                                                                <input type="number" placeholder="Cotação Ref." value={line.price || ''} onChange={(e) => updateLine(line.id, { price: parseFloat(e.target.value) || 0 }, true)} className="w-full bg-white border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-xs font-bold text-slate-700 focus:border-red-300 outline-none transition-all" />
+                                                                <input
+                                                                    type="text"
+                                                                    placeholder="Cotação Ref."
+                                                                    value={line.price.toString().replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ".")}
+                                                                    onChange={(e) => updateLine(line.id, { price: parseFloat(parsePTBR(e.target.value)) || 0 }, true)}
+                                                                    className="w-full bg-white border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-xs font-bold text-slate-700 focus:border-red-300 outline-none transition-all"
+                                                                />
                                                             </div>
                                                         </div>
                                                         <div>
@@ -281,7 +335,7 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
                                                             <label className="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Financeiro Est.</label>
                                                             <div className="relative">
                                                                 <span className="absolute left-4 top-3.5 text-slate-400 text-xs font-bold">R$</span>
-                                                                <input type="number" value={line.financial} readOnly className="w-full bg-slate-50 border border-slate-100 rounded-xl pl-10 pr-4 py-3 text-sm font-bold text-slate-400 outline-none" />
+                                                                <input type="text" value={line.financial} readOnly className="w-full bg-slate-50 border border-slate-100 rounded-xl pl-10 pr-4 py-3 text-sm font-bold text-slate-400 outline-none" />
                                                             </div>
                                                         </div>
                                                     </div>
