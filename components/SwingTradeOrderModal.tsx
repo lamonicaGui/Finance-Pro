@@ -354,15 +354,47 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
                                                                 />
                                                             </div>
                                                         </div>
-                                                        <div>
-                                                            <label className="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Quantidade</label>
-                                                            <input type="number" placeholder="0" value={line.quantity} onChange={(e) => updateLine(line.id, { quantity: e.target.value }, true)} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:border-red-300 outline-none transition-all" />
+                                                        <div className="col-span-1">
+                                                            <div className="flex items-center justify-between mb-2">
+                                                                <label className="block text-[10px] font-bold text-slate-500 uppercase">Quantidade</label>
+                                                                <input
+                                                                    type="radio"
+                                                                    name={`exit-basis-${line.id}`}
+                                                                    checked={line.basis === 'Quantidade'}
+                                                                    onChange={() => updateLine(line.id, { basis: 'Quantidade' }, true)}
+                                                                    className="w-3 h-3 accent-red-500 cursor-pointer"
+                                                                />
+                                                            </div>
+                                                            <input
+                                                                type="number"
+                                                                placeholder="0"
+                                                                value={line.quantity}
+                                                                disabled={line.basis !== 'Quantidade'}
+                                                                onChange={(e) => updateLine(line.id, { quantity: e.target.value }, true)}
+                                                                className={`w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none transition-all ${line.basis !== 'Quantidade' ? 'bg-slate-50 opacity-50 cursor-not-allowed' : 'focus:border-red-300'}`}
+                                                            />
                                                         </div>
-                                                        <div>
-                                                            <label className="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Financeiro Est.</label>
+                                                        <div className="col-span-1">
+                                                            <div className="flex items-center justify-between mb-2">
+                                                                <label className="block text-[10px] font-bold text-slate-500 uppercase">Financeiro</label>
+                                                                <input
+                                                                    type="radio"
+                                                                    name={`exit-basis-${line.id}`}
+                                                                    checked={line.basis === 'Financeiro'}
+                                                                    onChange={() => updateLine(line.id, { basis: 'Financeiro' }, true)}
+                                                                    className="w-3 h-3 accent-red-500 cursor-pointer"
+                                                                />
+                                                            </div>
                                                             <div className="relative">
                                                                 <span className="absolute left-4 top-3.5 text-slate-400 text-xs font-bold">R$</span>
-                                                                <input type="text" value={line.financial} readOnly className="w-full bg-slate-50 border border-slate-100 rounded-xl pl-10 pr-4 py-3 text-sm font-bold text-slate-400 outline-none" />
+                                                                <input
+                                                                    type="text"
+                                                                    placeholder="0,00"
+                                                                    value={line.financial}
+                                                                    disabled={line.basis !== 'Financeiro'}
+                                                                    onChange={(e) => updateLine(line.id, { financial: formatLivePTBR(e.target.value) }, true)}
+                                                                    className={`w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm font-bold text-slate-700 outline-none transition-all ${line.basis !== 'Financeiro' ? 'bg-slate-50 opacity-50 cursor-not-allowed' : 'focus:border-red-300'}`}
+                                                                />
                                                             </div>
                                                         </div>
                                                     </div>
