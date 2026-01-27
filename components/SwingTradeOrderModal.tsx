@@ -29,6 +29,8 @@ interface SelectedClient {
     conta: string;
     email?: string;
     cc?: string;
+    orders: OrderLineState[];
+    exitLines: OrderLineState[];
 }
 
 const formatFinanceiro = (val: string | number) => {
@@ -70,8 +72,8 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
             basis: 'Quantidade' as const,
             quantity: '',
             financial: '',
-            target: '', // Start blank per user request
-            stop: ''    // Start blank per user request
+            target: asset.targetPrice?.toString().replace('.', ',') || '',
+            stop: asset.stopPrice?.toString().replace('.', ',') || ''
         })));
     }, [assets]);
 
@@ -79,67 +81,45 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
         const setter = isExit ? setExitLines : setOrderLines;
         setter(prev => prev.map(line => {
             if (line.id !== id) return line;
+            return { ...line, ...updates };
+        }));
+    };
 
-            // "Preenchimento de um anula o outro" 
-            // If quantity is provided, we set basis to Quantidade and clear financial input before calc
-            // If financial is provided, we set basis to Financeiro and clear quantity input before calc
-            const newUpdates = { ...updates };
-            if (updates.quantity !== undefined) {
-                newUpdates.basis = 'Quantidade';
-            } else if (updates.financial !== undefined) {
-                newUpdates.basis = 'Financeiro';
-            }
+    const updateClientLine = (clientId: string, lineId: string, updates: Partial<OrderLineState>, isExit: boolean = false) => {
+        setSelectedClients(prev => prev.map(client => {
+            if (client.id !== clientId) return client;
 
-            const updated = { ...line, ...newUpdates };
-            const isBDR = line.ticker.endsWith('31') || line.ticker.endsWith('32') || line.ticker.endsWith('33');
+            const field = isExit ? 'exitLines' : 'orders';
+            const updatedLines = client[field as 'orders' | 'exitLines'].map(line => {
+                if (line.id !== lineId) return line;
 
-            if (newUpdates.quantity !== undefined && updated.basis === 'Quantidade') {
-                if (newUpdates.quantity === '') {
-                    updated.financial = '';
-                } else {
-                    const q = parseFloat(newUpdates.quantity) || 0;
-                    updated.financial = formatFinanceiro(q * updated.price);
+                const newUpdates = { ...updates };
+                if (updates.quantity !== undefined) newUpdates.basis = 'Quantidade' as const;
+                else if (updates.financial !== undefined) newUpdates.basis = 'Financeiro' as const;
+
+                const updated = { ...line, ...newUpdates };
+                const isBDR = line.ticker.endsWith('31') || line.ticker.endsWith('32') || line.ticker.endsWith('33');
+
+                if (newUpdates.quantity !== undefined && updated.basis === 'Quantidade') {
+                    if (newUpdates.quantity === '') updated.financial = '';
+                    else updated.financial = formatFinanceiro((parseFloat(newUpdates.quantity) || 0) * updated.price);
                 }
-            }
 
-            if (newUpdates.financial !== undefined && updated.basis === 'Financeiro') {
-                const fRaw = parsePTBR(newUpdates.financial);
-                if (fRaw === '') {
-                    updated.quantity = '';
-                } else {
-                    const f = parseFloat(fRaw) || 0;
-                    if (updated.price > 0) {
-                        if (isBDR) {
-                            updated.quantity = Math.floor(f / updated.price).toString();
-                        } else {
-                            const qRaw = f / updated.price;
-                            updated.quantity = (Math.floor(qRaw / 100) * 100).toString();
+                if (newUpdates.financial !== undefined && updated.basis === 'Financeiro') {
+                    const fRaw = parsePTBR(newUpdates.financial);
+                    if (fRaw === '') updated.quantity = '';
+                    else {
+                        const f = parseFloat(fRaw) || 0;
+                        if (updated.price > 0) {
+                            if (isBDR) updated.quantity = Math.floor(f / updated.price).toString();
+                            else updated.quantity = (Math.floor((f / updated.price) / 100) * 100).toString();
                         }
-                    } else {
-                        updated.quantity = '0';
                     }
                 }
-            }
+                return updated;
+            });
 
-            // Sync logic if basis changed but no direct value was passed (e.g. from a select)
-            if (updates.basis && !updates.quantity && !updates.financial) {
-                if (updated.basis === 'Quantidade' && updated.quantity) {
-                    updated.financial = formatFinanceiro(parseFloat(updated.quantity) * updated.price);
-                } else if (updated.basis === 'Financeiro' && updated.financial) {
-                    const f = parseFloat(parsePTBR(updated.financial)) || 0;
-                    if (updated.price > 0) {
-                        if (isBDR) {
-                            updated.quantity = Math.floor(f / updated.price).toString();
-                        } else {
-                            const qRaw = f / updated.price;
-                            updated.quantity = (Math.floor(qRaw / 100) * 100).toString();
-                        }
-                        updated.financial = formatFinanceiro(parseFloat(updated.quantity) * updated.price);
-                    }
-                }
-            }
-
-            return updated;
+            return { ...client, [field]: updatedLines };
         }));
     };
 
@@ -169,9 +149,9 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
     const handleSendEmail = async (client: SelectedClient) => {
         const subject = generateOrderEmailSubject({ conta: client.conta, id: client.id });
 
-        // Transform lines to match generator expectations (forcing price mode to Mercado)
-        const mappedOrders = orderLines.map(line => ({ ...line, mode: 'Mercado' }));
-        const mappedExit = exitLines.map(line => ({ ...line, mode: 'Mercado' }));
+        // Transform lines to match generator expectations (using client-specific orders)
+        const mappedOrders = client.orders.map(line => ({ ...line, mode: 'Mercado' }));
+        const mappedExit = client.exitLines.map(line => ({ ...line, mode: 'Mercado' }));
 
         const html = generateOrderEmailHtml({ nome: client.nome }, mappedOrders, mode === 'exchange' ? mappedExit : undefined);
         const plainText = generateOrderEmailPlainText({ nome: client.nome }, mappedOrders, mode === 'exchange' ? mappedExit : undefined);
@@ -182,11 +162,13 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
 
     const addClient = (client: any) => {
         const mappedClient: SelectedClient = {
-            id: client["Cod Bolsa"].toString(),
+            id: client["Cod Bols"].toString(),
             nome: client["Cliente"],
             conta: client["Conta"].toString(),
             email: client["Email Cliente"] || '',
-            cc: client["Email Assessor"] || ''
+            cc: client["Email Assessor"] || '',
+            orders: orderLines.map(line => ({ ...line })), // Initialize with current templates
+            exitLines: exitLines.map(line => ({ ...line }))
         };
         if (!selectedClients.find(c => c.id === mappedClient.id)) {
             setSelectedClients([...selectedClients, mappedClient]);
@@ -222,7 +204,7 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
                                 <div className="space-y-8">
                                     {orderLines.map((line) => (
                                         <div key={line.id} className="bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
-                                            <div className="grid grid-cols-1 md:grid-cols-6 gap-6">
+                                            <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
                                                 <div className="col-span-1">
                                                     <label className="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Ativo</label>
                                                     <input type="text" readOnly value={line.ticker} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-400 focus:outline-none" />
@@ -243,69 +225,22 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
                                                     </div>
                                                 </div>
                                                 <div className="col-span-1">
-                                                    <div className="flex items-center justify-between mb-2">
-                                                        <label className="block text-[10px] font-bold text-slate-500 uppercase">Quantidade</label>
-                                                        <input
-                                                            type="radio"
-                                                            name={`basis-${line.id}`}
-                                                            checked={line.basis === 'Quantidade'}
-                                                            onChange={() => updateLine(line.id, { basis: 'Quantidade' })}
-                                                            className="w-3 h-3 accent-primary cursor-pointer"
-                                                        />
-                                                    </div>
+                                                    <label className="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Alvo</label>
                                                     <input
-                                                        type="number"
-                                                        placeholder="0"
-                                                        value={line.quantity}
-                                                        disabled={line.basis !== 'Quantidade'}
-                                                        onChange={(e) => updateLine(line.id, { quantity: e.target.value })}
-                                                        className={`w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none transition-all ${line.basis !== 'Quantidade' ? 'bg-slate-50 opacity-50 cursor-not-allowed' : 'focus:ring-2 focus:ring-primary/20 focus:border-primary'}`}
+                                                        type="text"
+                                                        value={line.target.replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ".")}
+                                                        onChange={(e) => updateLine(line.id, { target: formatLivePTBR(e.target.value) })}
+                                                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none"
                                                     />
                                                 </div>
                                                 <div className="col-span-1">
-                                                    <div className="flex items-center justify-between mb-2">
-                                                        <label className="block text-[10px] font-bold text-slate-500 uppercase">Financeiro</label>
-                                                        <input
-                                                            type="radio"
-                                                            name={`basis-${line.id}`}
-                                                            checked={line.basis === 'Financeiro'}
-                                                            onChange={() => updateLine(line.id, { basis: 'Financeiro' })}
-                                                            className="w-3 h-3 accent-primary cursor-pointer"
-                                                        />
-                                                    </div>
-                                                    <div className="relative">
-                                                        <span className="absolute left-4 top-3.5 text-slate-400 text-xs font-bold">R$</span>
-                                                        <input
-                                                            type="text"
-                                                            placeholder="0,00"
-                                                            value={line.financial}
-                                                            disabled={line.basis !== 'Financeiro'}
-                                                            onChange={(e) => updateLine(line.id, { financial: formatLivePTBR(e.target.value) })}
-                                                            className={`w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm font-bold text-slate-700 outline-none transition-all ${line.basis !== 'Financeiro' ? 'bg-slate-50 opacity-50 cursor-not-allowed' : 'focus:ring-2 focus:ring-primary/20 focus:border-primary'}`}
-                                                        />
-                                                    </div>
-                                                </div>
-                                                <div className="col-span-1">
-                                                    <div className="grid grid-cols-2 gap-4">
-                                                        <div>
-                                                            <label className="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Alvo</label>
-                                                            <input
-                                                                type="text"
-                                                                value={line.target.replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ".")}
-                                                                onChange={(e) => updateLine(line.id, { target: formatLivePTBR(e.target.value) })}
-                                                                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none"
-                                                            />
-                                                        </div>
-                                                        <div>
-                                                            <label className="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Stop</label>
-                                                            <input
-                                                                type="text"
-                                                                value={line.stop.replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ".")}
-                                                                onChange={(e) => updateLine(line.id, { stop: formatLivePTBR(e.target.value) })}
-                                                                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none"
-                                                            />
-                                                        </div>
-                                                    </div>
+                                                    <label className="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Stop</label>
+                                                    <input
+                                                        type="text"
+                                                        value={line.stop.replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ".")}
+                                                        onChange={(e) => updateLine(line.id, { stop: formatLivePTBR(e.target.value) })}
+                                                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none"
+                                                    />
                                                 </div>
                                             </div>
                                         </div>
@@ -421,61 +356,132 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
                                 </div>
                             )}
 
-                            <div className="space-y-4">
-                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Clientes Selecionados ({selectedClients.length})</h4>
+                            <div className="space-y-6">
+                                {step === 'dispatch' && (
+                                    <div className="bg-emerald-50 border border-emerald-100 p-6 rounded-2xl flex items-center gap-4 animate-in slide-in-from-top-4 duration-300">
+                                        <span className="material-symbols-outlined text-emerald-600">info</span>
+                                        <p className="text-xs font-bold text-emerald-800">Clique em cada cliente abaixo para abrir o Outlook com a mensagem formatada pronta para o envio.</p>
+                                    </div>
+                                )}
+                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Clientes Selecionados e Alocações ({selectedClients.length})</h4>
                                 {selectedClients.length === 0 ? (
                                     <div className="py-12 border-2 border-dashed border-slate-100 rounded-2xl text-center text-slate-400 text-xs italic">
                                         Nenhum cliente selecionado. Use a busca acima.
                                     </div>
                                 ) : (
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    <div className="space-y-6">
                                         {selectedClients.map(client => (
-                                            <div key={client.id} className="flex items-center justify-between p-4 bg-white border border-slate-200 rounded-xl shadow-sm hover:border-primary transition-all group">
-                                                <div>
-                                                    <p className="font-black text-slate-900 text-sm uppercase">{client.nome}</p>
-                                                    <p className="text-[10px] font-bold text-slate-400">Conta: {client.conta}</p>
-                                                </div>
-                                                {step === 'clients' && (
-                                                    <button
-                                                        onClick={() => setSelectedClients(selectedClients.filter(c => c.id !== client.id))}
-                                                        className="text-slate-300 hover:text-red-500 transition-colors"
-                                                    >
-                                                        <span className="material-symbols-outlined">delete</span>
-                                                    </button>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}{step === 'dispatch' && (
-                                    <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
-                                        <div className="bg-emerald-50 border border-emerald-100 p-6 rounded-2xl flex items-center gap-4">
-                                            <span className="material-symbols-outlined text-emerald-600">info</span>
-                                            <p className="text-xs font-bold text-emerald-800">Clique em cada cliente abaixo para abrir o Outlook com a mensagem formatada pronta para o envio.</p>
-                                        </div>
-                                        <div className="grid grid-cols-1 gap-4">
-                                            {selectedClients.map(client => (
-                                                <div key={client.id} className="flex items-center justify-between p-6 bg-white border border-slate-200 rounded-2xl shadow-sm hover:shadow-md transition-all">
+                                            <div key={client.id} className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm hover:shadow-md transition-all text-left">
+                                                {/* Card Header */}
+                                                <div className="bg-slate-50 px-8 py-6 border-b border-slate-200 flex justify-between items-center">
                                                     <div>
-                                                        <h5 className="font-black text-slate-900 uppercase">{client.nome}</h5>
-                                                        <div className="flex gap-4 mt-1">
-                                                            <span className="text-[10px] font-bold text-slate-400 uppercase">Conta: {client.conta}</span>
-                                                            <span className="text-[10px] font-bold text-slate-400 uppercase">Bolsa: {client.id}</span>
-                                                            <span className="text-[10px] font-bold text-blue-500 truncate">{client.email}</span>
-                                                            {client.cc && (
-                                                                <span className="text-[10px] font-bold text-slate-400 truncate">CC: {client.cc}</span>
-                                                            )}
+                                                        <h5 className="font-black text-slate-900 uppercase tracking-tight">{client.nome}</h5>
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase">Conta: {client.conta} | Bolsa: {client.id} | Email: {client.email}</p>
+                                                    </div>
+                                                    <div className="flex items-center gap-4">
+                                                        {step === 'clients' ? (
+                                                            <button
+                                                                onClick={() => setSelectedClients(selectedClients.filter(c => c.id !== client.id))}
+                                                                className="text-red-400 hover:text-red-600 transition-colors"
+                                                            >
+                                                                <span className="material-symbols-outlined rounded-xl hover:bg-red-50 p-2 text-xl">delete</span>
+                                                            </button>
+                                                        ) : (
+                                                            <button
+                                                                onClick={() => handleSendEmail(client)}
+                                                                className="bg-slate-900 text-primary px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:brightness-125 transition-all shadow-lg"
+                                                            >
+                                                                <span className="material-symbols-outlined text-sm">mail</span>
+                                                                Abrir Outlook
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {/* Card Content - Allocations */}
+                                                <div className="p-8 space-y-8">
+                                                    {/* Entry Allocations */}
+                                                    <div>
+                                                        <div className="flex items-center gap-2 mb-4">
+                                                            <div className="h-4 w-1 bg-emerald-500 rounded-full"></div>
+                                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Alocação de Entrada</p>
+                                                        </div>
+                                                        <div className="space-y-4">
+                                                            {client.orders.map(line => (
+                                                                <div key={line.id} className="grid grid-cols-4 gap-6 bg-slate-50/50 p-5 rounded-2xl border border-slate-100 items-end">
+                                                                    <div className="col-span-1">
+                                                                        <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Ativo</p>
+                                                                        <p className="text-sm font-black text-slate-700">{line.ticker}</p>
+                                                                    </div>
+                                                                    <div className="col-span-1">
+                                                                        <div className="flex items-center justify-between mb-2">
+                                                                            <label className="text-[10px] font-bold text-slate-500 uppercase">Qtd.</label>
+                                                                            <input type="radio" name={`basis-entry-${client.id}-${line.id}`} checked={line.basis === 'Quantidade'} onChange={() => updateClientLine(client.id, line.id, { basis: 'Quantidade' })} className="w-3 h-3 accent-primary cursor-pointer" />
+                                                                        </div>
+                                                                        <input type="number" placeholder="0" value={line.quantity} disabled={line.basis !== 'Quantidade'} onChange={(e) => updateClientLine(client.id, line.id, { quantity: e.target.value })} className={`w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none ${line.basis !== 'Quantidade' ? 'opacity-30' : 'focus:ring-2 focus:ring-primary/20'}`} />
+                                                                    </div>
+                                                                    <div className="col-span-1">
+                                                                        <div className="flex items-center justify-between mb-2">
+                                                                            <label className="text-[10px] font-bold text-slate-500 uppercase">Financeiro</label>
+                                                                            <input type="radio" name={`basis-entry-${client.id}-${line.id}`} checked={line.basis === 'Financeiro'} onChange={() => updateClientLine(client.id, line.id, { basis: 'Financeiro' })} className="w-3 h-3 accent-primary cursor-pointer" />
+                                                                        </div>
+                                                                        <div className="relative">
+                                                                            <span className="absolute left-4 top-3.5 text-slate-300 text-[10px] font-bold uppercase">R$</span>
+                                                                            <input type="text" placeholder="0,00" value={line.financial} disabled={line.basis !== 'Financeiro'} onChange={(e) => updateClientLine(client.id, line.id, { financial: formatLivePTBR(e.target.value) })} className={`w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm font-bold text-slate-700 outline-none ${line.basis !== 'Financeiro' ? 'opacity-30' : 'focus:ring-2 focus:ring-primary/20'}`} />
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="col-span-1">
+                                                                        <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Alvo / Stop</p>
+                                                                        <p className="text-[11px] font-bold text-slate-500">{line.target || 'N/A'} / {line.stop || 'N/A'}</p>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
                                                         </div>
                                                     </div>
-                                                    <button
-                                                        onClick={() => handleSendEmail(client)}
-                                                        className="bg-slate-900 text-primary px-6 py-3 rounded-xl text-[11px] font-black uppercase tracking-widest flex items-center gap-2 hover:brightness-125 transition-all shadow-lg"
-                                                    >
-                                                        <span className="material-symbols-outlined text-sm">mail</span>
-                                                        Abrir Outlook
-                                                    </button>
+
+                                                    {/* Exit Allocations (if exchange) */}
+                                                    {mode === 'exchange' && client.exitLines.length > 0 && (
+                                                        <div>
+                                                            <div className="flex items-center gap-2 mb-4">
+                                                                <div className="h-4 w-1 bg-red-500 rounded-full"></div>
+                                                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Alocação de Saída</p>
+                                                            </div>
+                                                            <div className="space-y-4">
+                                                                {client.exitLines.map(line => (
+                                                                    <div key={line.id} className="grid grid-cols-4 gap-6 bg-red-50/10 p-5 rounded-2xl border border-red-100/30 items-end">
+                                                                        <div className="col-span-1">
+                                                                            <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Ativo</p>
+                                                                            <p className="text-sm font-black text-slate-700">{line.ticker}</p>
+                                                                        </div>
+                                                                        <div className="col-span-1">
+                                                                            <div className="flex items-center justify-between mb-2">
+                                                                                <label className="text-[10px] font-bold text-slate-500 uppercase">Qtd.</label>
+                                                                                <input type="radio" name={`basis-exit-${client.id}-${line.id}`} checked={line.basis === 'Quantidade'} onChange={() => updateClientLine(client.id, line.id, { basis: 'Quantidade' }, true)} className="w-3 h-3 accent-red-500 cursor-pointer" />
+                                                                            </div>
+                                                                            <input type="number" placeholder="0" value={line.quantity} disabled={line.basis !== 'Quantidade'} onChange={(e) => updateClientLine(client.id, line.id, { quantity: e.target.value }, true)} className={`w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none ${line.basis !== 'Quantidade' ? 'opacity-30' : 'focus:border-red-300'}`} />
+                                                                        </div>
+                                                                        <div className="col-span-1">
+                                                                            <div className="flex items-center justify-between mb-2">
+                                                                                <label className="text-[10px] font-bold text-slate-500 uppercase">Financeiro</label>
+                                                                                <input type="radio" name={`basis-exit-${client.id}-${line.id}`} checked={line.basis === 'Financeiro'} onChange={() => updateClientLine(client.id, line.id, { basis: 'Financeiro' }, true)} className="w-3 h-3 accent-red-500 cursor-pointer" />
+                                                                            </div>
+                                                                            <div className="relative">
+                                                                                <span className="absolute left-4 top-3.5 text-red-300 text-[10px] font-bold uppercase">R$</span>
+                                                                                <input type="text" placeholder="0,00" value={line.financial} disabled={line.basis !== 'Financeiro'} onChange={(e) => updateClientLine(client.id, line.id, { financial: formatLivePTBR(e.target.value) }, true)} className={`w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm font-bold text-slate-700 outline-none ${line.basis !== 'Financeiro' ? 'opacity-30' : 'focus:border-red-300'}`} />
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="col-span-1">
+                                                                            <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Preço Ref.</p>
+                                                                            <p className="text-[11px] font-bold text-slate-500">R$ {line.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                            ))}
-                                        </div>
+                                            </div>
+                                        ))}
                                     </div>
                                 )}
                             </div>
