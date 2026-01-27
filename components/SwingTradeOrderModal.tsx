@@ -15,8 +15,8 @@ interface OrderLineState {
     id: string;
     ticker: string;
     type: 'Compra' | 'Venda' | 'L&S';
-    price: number;
-    mode: 'Quantidade' | 'Financeiro';
+    price: number; // For internal calculations
+    basis: 'Quantidade' | 'Financeiro';
     quantity: string;
     financial: string;
     target: number;
@@ -43,7 +43,7 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
             ticker: asset.ticker,
             type: asset.type as any,
             price: asset.currentPrice || asset.entryPrice,
-            mode: 'Quantidade' as const,
+            basis: 'Quantidade' as const,
             quantity: '',
             financial: '',
             target: asset.targetPrice,
@@ -57,22 +57,22 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
             if (line.id !== id) return line;
             const updated = { ...line, ...updates };
 
-            if (updates.quantity !== undefined && updated.mode === 'Quantidade') {
+            if (updates.quantity !== undefined && updated.basis === 'Quantidade') {
                 const q = parseFloat(updates.quantity) || 0;
                 updated.financial = (q * updated.price).toFixed(2);
             }
 
-            if (updates.financial !== undefined && updated.mode === 'Financeiro') {
+            if (updates.financial !== undefined && updated.basis === 'Financeiro') {
                 const f = parseFloat(updates.financial) || 0;
                 if (updated.price > 0) {
                     updated.quantity = Math.floor(f / updated.price).toString();
                 }
             }
 
-            if (updates.mode) {
-                if (updated.mode === 'Quantidade' && updated.quantity) {
+            if (updates.basis) {
+                if (updated.basis === 'Quantidade' && updated.quantity) {
                     updated.financial = (parseFloat(updated.quantity) * updated.price).toFixed(2);
-                } else if (updated.mode === 'Financeiro' && updated.financial) {
+                } else if (updated.basis === 'Financeiro' && updated.financial) {
                     updated.quantity = Math.floor(parseFloat(updated.financial) / updated.price).toString();
                 }
             }
@@ -87,7 +87,7 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
             ticker: '',
             type: 'Venda',
             price: 0,
-            mode: 'Quantidade',
+            basis: 'Quantidade',
             quantity: '',
             financial: '',
             target: 0,
@@ -107,9 +107,12 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
     const handleSendEmail = async (client: SelectedClient) => {
         const subject = generateOrderEmailSubject({ conta: client.conta, id: client.id });
 
-        // Pass both sets of lines if in exchange mode
-        const html = generateOrderEmailHtml({ nome: client.nome }, orderLines, mode === 'exchange' ? exitLines : undefined);
-        const plainText = generateOrderEmailPlainText({ nome: client.nome }, orderLines, mode === 'exchange' ? exitLines : undefined);
+        // Transform lines to match generator expectations (forcing price mode to Mercado)
+        const mappedOrders = orderLines.map(line => ({ ...line, mode: 'Mercado' }));
+        const mappedExit = exitLines.map(line => ({ ...line, mode: 'Mercado' }));
+
+        const html = generateOrderEmailHtml({ nome: client.nome }, mappedOrders, mode === 'exchange' ? mappedExit : undefined);
+        const plainText = generateOrderEmailPlainText({ nome: client.nome }, mappedOrders, mode === 'exchange' ? mappedExit : undefined);
 
         const ccEmail = client.cc || userEmail;
         await copyAndOpenOutlook(client.email || '', subject, html, plainText, ccEmail);
@@ -172,9 +175,8 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
                                                 </div>
                                                 <div className="col-span-1">
                                                     <label className="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Preço</label>
-                                                    <div className="relative">
-                                                        <span className="absolute left-4 top-3.5 text-slate-400 text-xs font-bold">R$</span>
-                                                        <input type="number" value={line.price} onChange={(e) => updateLine(line.id, { price: parseFloat(e.target.value) || 0 })} className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm font-bold text-slate-700 outline-none" />
+                                                    <div className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-tighter flex items-center justify-center">
+                                                        A MERCADO
                                                     </div>
                                                 </div>
                                                 <div className="col-span-1">
@@ -228,8 +230,11 @@ const SwingTradeOrderModal: React.FC<SwingTradeOrderModalProps> = ({ assets, mod
                                                             <input type="text" placeholder="PETR4" value={line.ticker} onChange={(e) => updateLine(line.id, { ticker: e.target.value.toUpperCase() }, true)} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-black text-slate-700 focus:border-red-300 outline-none transition-all uppercase" />
                                                         </div>
                                                         <div>
-                                                            <label className="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Preço Estimado</label>
-                                                            <input type="number" placeholder="0.00" value={line.price || ''} onChange={(e) => updateLine(line.id, { price: parseFloat(e.target.value) || 0 }, true)} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:border-red-300 outline-none transition-all" />
+                                                            <label className="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Preço (Mercado)</label>
+                                                            <div className="relative">
+                                                                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-slate-400 uppercase pointer-events-none bg-slate-100 px-1.5 py-0.5 rounded shadow-sm border border-slate-200">MKT</div>
+                                                                <input type="number" placeholder="Cotação Ref." value={line.price || ''} onChange={(e) => updateLine(line.id, { price: parseFloat(e.target.value) || 0 }, true)} className="w-full bg-white border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-xs font-bold text-slate-700 focus:border-red-300 outline-none transition-all" />
+                                                            </div>
                                                         </div>
                                                         <div>
                                                             <label className="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Quantidade</label>
