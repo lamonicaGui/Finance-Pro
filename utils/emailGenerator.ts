@@ -27,11 +27,24 @@ export const generateOrderEmailHtml = (client: { nome: string }, orders: any[], 
         }).join('');
     };
 
-    const stopOrders = orders.filter(o => (o.stop && o.stop > 0) || (o.target && o.target > 0));
+    const parseNumeric = (val: any) => {
+        if (typeof val === 'number') return val;
+        if (typeof val === 'string') return parseFloat(val.replace(/\./g, '').replace(',', '.')) || 0;
+        return 0;
+    };
+
+    const stopOrders = orders.filter(o => {
+        const s = parseNumeric(o.stop);
+        const t = parseNumeric(o.target);
+        return s > 0 || t > 0;
+    });
+
     const renderStopRows = () => {
         return stopOrders.map((o) => {
-            const stopLabel = o.stop?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00';
-            const targetLabel = o.target?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00';
+            const s = parseNumeric(o.stop);
+            const t = parseNumeric(o.target);
+            const stopLabel = s.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+            const targetLabel = t.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
             return `
             <tr>
                 <td style="border: 1px solid #000000; padding: 6px; font-family: Arial; font-size: 12px; font-weight: bold; text-align: left;">
@@ -121,8 +134,22 @@ export const generateOrderEmailPlainText = (client: { nome: string }, orders: an
     const orderLines = orders.map(formatLine).join('\n');
     const exitLinesText = exitOrders ? exitOrders.map(formatLine).join('\n') : '';
 
-    const stopLines = orders.filter(o => (o.stop && o.stop > 0) || (o.target && o.target > 0))
-        .map(o => `${o.ticker} - STOP: ${o.stop?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00'} / ALVO: ${o.target?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00'} - VAC`)
+    const parseNumeric = (val: any) => {
+        if (typeof val === 'number') return val;
+        if (typeof val === 'string') return parseFloat(val.replace(/\./g, '').replace(',', '.')) || 0;
+        return 0;
+    };
+
+    const stopLines = orders.filter(o => {
+        const s = parseNumeric(o.stop);
+        const t = parseNumeric(o.target);
+        return s > 0 || t > 0;
+    })
+        .map(o => {
+            const s = parseNumeric(o.stop);
+            const t = parseNumeric(o.target);
+            return `${o.ticker} - STOP: ${s.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} / ALVO: ${t.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} - VAC`;
+        })
         .join('\n');
 
     let body = `Olá ${client.nome || 'Cliente'}, tudo bem?\n\n`;
