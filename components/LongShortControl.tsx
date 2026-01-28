@@ -110,6 +110,16 @@ const LongShortControl: React.FC = () => {
             .replace(/[\u0300-\u036f]/g, "")
             .replace(/[^a-z0-9]/g, "");
 
+    const formatDate = (dateStr: string) => {
+        if (!dateStr) return null;
+        const parts = dateStr.split(' ')[0].split('/');
+        if (parts.length === 3) {
+            const [day, month, year] = parts;
+            return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+        }
+        return dateStr;
+    };
+
     const parseNum = (val: any): number => {
         if (typeof val === 'number') return val;
         if (!val) return 0;
@@ -229,7 +239,7 @@ const LongShortControl: React.FC = () => {
                     lado: String(getRaw(item, ['Lado', 'C/V', 'Sentido']) || '').trim().toUpperCase(), // 'C' ou 'V'
                     qtd: parseNum(getRaw(item, ['Quantidade', 'Qtd', 'Volume'])),
                     pm: parseNum(getRaw(item, ['Preço Médio', 'PM', 'Preço', 'Preço Executado'])),
-                    data: String(getRaw(item, ['Data de Início', 'Data', 'Abertura', 'Criação', 'Criado em']) || '').split(' ')[0], // Apenas a data
+                    data: formatDate(String(getRaw(item, ['Data de Início', 'Data', 'Abertura', 'Criação', 'Criado em']) || '')),
                     status: isAberta ? 'Aberta' : statusRaw
                 };
             }).filter(leg => leg.cliente && leg.ativo && leg.lado && leg.data && leg.status === 'Aberta');
