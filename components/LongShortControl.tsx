@@ -186,7 +186,7 @@ const LongShortControl: React.FC = () => {
                 let headerIndex = 0;
                 for (let i = 0; i < Math.min(lines.length, 5); i++) {
                     const line = lines[i].toLowerCase();
-                    if (line.includes('corretora') || line.includes('titular') || line.includes('ativo')) {
+                    if (line.includes('corretora') || line.includes('titular') || line.includes('ativo') || line.includes('papel') || line.includes('c/v')) {
                         headerIndex = i;
                         break;
                     }
@@ -197,10 +197,10 @@ const LongShortControl: React.FC = () => {
                 const hasSemicolon = firstLines.includes(';');
 
                 Papa.parse(cleanText, {
-                    header: true,
+                    header: false,
                     skipEmptyLines: true,
                     delimiter: hasSemicolon ? ';' : ',',
-                    complete: (results) => processImport(results.data),
+                    complete: (results) => processImport(results.data as any[][]),
                     error: () => setIsImporting(false)
                 });
             };
@@ -218,13 +218,13 @@ const LongShortControl: React.FC = () => {
                     let headerRowIndex = 0;
                     for (let i = 0; i < Math.min(rows.length, 5); i++) {
                         const rowStr = JSON.stringify(rows[i]).toLowerCase();
-                        if (rowStr.includes('corretora') || rowStr.includes('titular') || rowStr.includes('ativo')) {
+                        if (rowStr.includes('corretora') || rowStr.includes('titular') || rowStr.includes('ativo') || rowStr.includes('papel') || rowStr.includes('c/v')) {
                             headerRowIndex = i;
                             break;
                         }
                     }
 
-                    const jsonData = XLSX.utils.sheet_to_json(sheet, { range: headerRowIndex });
+                    const jsonData: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, range: headerRowIndex });
                     processImport(jsonData);
                 } catch (err) {
                     setIsImporting(false);
@@ -234,95 +234,52 @@ const LongShortControl: React.FC = () => {
         }
     };
 
-    const processImport = async (rawData: any[]) => {
+    const processImport = async (rawData: any[][]) => {
         try {
-            // Se o arquivo tiver uma linha de metadados no topo, pulamos se necessário.
-            // O PapaParse já lida com o cabeçalho se configurado.
-
-            const getRaw = (item: any, aliases: string[]) => {
-                const keys = Object.keys(item);
-                const exact = keys.find(k => {
-                    const normK = normalizeStr(k);
-                    return aliases.some(a => normalizeStr(a) === normK);
-                });
-                return exact ? item[exact] : undefined;
-            };
-
-            // Processar como "legs" individuais primeiro
-            const legs = rawData.map(item => {
-                const statusRaw = String(getRaw(item, ['Status da Operação', 'Status', 'Situação']) || 'Aberta').trim();
-                const isAberta = normalizeStr(statusRaw) === 'aberta' || statusRaw === '';
-
-                return {
-                    cliente: String(getRaw(item, ['Cliente', 'Nome', 'Titular', 'Nome do Cliente']) || '').trim(),
-                    ativo: String(getRaw(item, ['Ativo', 'Papel', 'Símbolo']) || '').trim().toUpperCase(),
-                    lado: String(getRaw(item, ['Lado', 'C/V', 'Sentido']) || '').trim().toUpperCase(), // 'C' ou 'V'
-                    qtd: parseNum(getRaw(item, ['Quantidade', 'Qtd', 'Volume'])),
-                    pm: parseNum(getRaw(item, ['Preço Médio', 'PM', 'Preço', 'Preço Executado'])),
-                    data: formatDate(String(getRaw(item, ['Data de Início', 'Data', 'Abertura', 'Criação', 'Criado em']) || '')),
-                    status: isAberta ? 'Aberta' : statusRaw
-                };
-            }).filter(leg => leg.cliente && leg.ativo && leg.lado && leg.data && leg.status === 'Aberta');
-
-            // Agrupar pernas em Pares (Long & Short)
-            // Agrupamos por Cliente + Data
-            const groupedByClient: Record<string, typeof legs> = {};
-            legs.forEach(leg => {
-                if (!groupedByClient[leg.cliente]) groupedByClient[leg.cliente] = [];
-                groupedByClient[leg.cliente].push(leg);
-            });
-
-            const pairs: any[] = [];
-            Object.keys(groupedByClient).forEach(client => {
-                const clientLegs = groupedByClient[client];
-                const buys = clientLegs.filter(l => l.lado === 'C' || l.lado === 'COMPRA');
-                const sells = clientLegs.filter(l => l.lado === 'V' || l.lado === 'VENDA' || l.lado === 'S');
-
-                // Tentar parear por data
-                buys.forEach(b => {
-                    const matchIdx = sells.findIndex(s => s.data === b.data);
-                    if (matchIdx !== -1) {
-                        const s = sells.splice(matchIdx, 1)[0];
-                        pairs.push({
-                            cliente: client,
-                            ativo_long: b.ativo,
-                            qtd_long: b.qtd,
-                            pm_long: b.pm,
-                            ativo_short: s.ativo,
-                            qtd_short: s.qtd,
-                            pm_short: s.pm,
-                            data_inicio: b.data,
-                            status: 'Aberta'
-                        });
-                    } else {
-                        // Se não achar par por data, mas for o único client-buy e tiver um client-sell, pareia mesmo assim
-                        if (sells.length > 0) {
-                            const s = sells.splice(0, 1)[0];
-                            pairs.push({
-                                cliente: client,
-                                ativo_long: b.ativo,
-                                qtd_long: b.qtd,
-                                pm_long: b.pm,
-                                ativo_short: s.ativo,
-                                qtd_short: s.qtd,
-                                pm_short: s.pm,
-                                data_inicio: b.data,
-                                status: 'Aberta'
-                            });
-                        }
-                    }
-                });
-            });
-
-            if (pairs.length === 0) {
-                const buysCount = legs.filter(l => l.lado === 'C' || l.lado === 'COMPRA').length;
-                const sellsCount = legs.filter(l => l.lado === 'V' || l.lado === 'VENDA' || l.lado === 'S').length;
-                alert(`Nenhum par Long & Short válido encontrado.\n\nPernas detectadas: ${legs.length}\nCompras: ${buysCount}\nVendas: ${sellsCount}\n\nVerifique se a planilha contém tanto a compra quanto a venda para cada par e se o status está como 'Aberta'.`);
+            if (rawData.length < 2) {
+                alert("Planilha vazia ou sem dados.");
                 return;
             }
 
-            // Lógica de Encerramento Automático
-            // 1. Buscar operações abertas atuais
+            const headers = rawData[0].map(h => normalizeStr(String(h || '')));
+            const rows = rawData.slice(1);
+
+            const getColIdx = (aliases: string[]) => {
+                const normAliases = aliases.map(a => normalizeStr(a));
+                return headers.findIndex(h => normAliases.includes(h));
+            };
+
+            const idxCliente = getColIdx(['Cliente', 'Nome', 'Titular', 'Nome do Cliente']);
+            const idxAtivo = getColIdx(['Ativo', 'Papel', 'Símbolo']);
+            const idxLado = getColIdx(['Lado', 'C/V', 'Sentido']);
+            const idxQtd = getColIdx(['Quantidade', 'Qtd', 'Volume', 'Qtd. Exec.']);
+            const idxPM = getColIdx(['Preço Médio', 'PM', 'Preço', 'Preço Executado', 'Prc. Médio', 'Prc Médio']);
+            const idxData = getColIdx(['Data de Início', 'Data', 'Abertura', 'Criação', 'Criado em', 'Última Atualização', 'Data / Hora']);
+
+            if (idxAtivo === -1 || idxLado === -1 || idxQtd === -1) {
+                alert("Não foi possível identificar colunas essenciais (Ativo, C/V, Qtd). Verifique o cabeçalho.");
+                return;
+            }
+
+            // Processar como "legs" individuais
+            const legs = rows.map(row => {
+                const cliente = idxCliente !== -1 ? String(row[idxCliente] || '').trim() : '';
+                const ativo = String(row[idxAtivo] || '').trim().toUpperCase();
+                const lado = String(row[idxLado] || '').trim().toUpperCase();
+                const qtd = parseNum(row[idxQtd]);
+                const pm = idxPM !== -1 ? parseNum(row[idxPM]) : 0;
+                const dataRaw = idxData !== -1 ? String(row[idxData] || '') : '';
+                const data = formatDate(dataRaw);
+
+                return { cliente, ativo, lado, qtd, pm, data };
+            }).filter(leg => leg.ativo && leg.lado && leg.qtd > 0);
+
+            if (legs.length === 0) {
+                alert("Nenhuma operação válida encontrada na planilha.");
+                return;
+            }
+
+            // 1. Buscar operações abertas atuais para verificar encerramentos
             const { data: openOps, error: fetchErr } = await supabase
                 .from('long_short_operations')
                 .select('*')
@@ -330,41 +287,110 @@ const LongShortControl: React.FC = () => {
 
             if (fetchErr) throw fetchErr;
 
-            const idsToClose: string[] = [];
-            const finalPairs = pairs.map(p => {
-                // Procurar se existe uma operação aberta que é o inverso desta novo par
-                const inverseMatch = openOps?.find(ext =>
-                    ext.cliente === p.cliente &&
-                    ext.ativo_long === p.ativo_short &&
-                    ext.ativo_short === p.ativo_long
-                );
+            const finalPairs: any[] = [];
+            const remainingLegsOfFile: typeof legs = [];
+            let closingsCount = 0;
 
-                if (inverseMatch) {
-                    idsToClose.push(inverseMatch.id!);
-                    return { ...p, status: 'Encerrada' };
+            // Ordenar posições abertas por data para fechar as mais antigas primeiro
+            const sortedOpenOps = [...(openOps || [])].sort((a, b) => new Date(a.data_inicio).getTime() - new Date(b.data_inicio).getTime());
+
+            // Processar cada perna da planilha
+            for (const leg of legs) {
+                let matched = false;
+                const isBuy = leg.lado === 'C' || leg.lado === 'COMPRA';
+
+                // Procurar no banco se existe uma posição onde este ativo está no lado oposto
+                for (let op of sortedOpenOps) {
+                    if (op.status === 'Aberta' && (leg.cliente === '' || op.cliente === leg.cliente)) {
+                        if (isBuy && op.ativo_short === leg.ativo) {
+                            // Encerramento de SHORT (Vendido) -> Compramos para fechar
+                            const diff = op.qtd_short - leg.qtd;
+                            if (diff <= 0) {
+                                await supabase.from('long_short_operations').update({ status: 'Encerrada' }).eq('id', op.id);
+                                op.status = 'Encerrada';
+                                if (diff < 0) {
+                                    leg.qtd = Math.abs(diff); // Continua processando o restante da perna
+                                } else {
+                                    matched = true;
+                                }
+                            } else {
+                                await supabase.from('long_short_operations').update({ qtd_short: diff }).eq('id', op.id);
+                                op.qtd_short = diff;
+                                matched = true;
+                            }
+                            closingsCount++;
+                            if (matched) break;
+                        } else if (!isBuy && op.ativo_long === leg.ativo) {
+                            // Encerramento de LONG (Comprado) -> Vendemos para fechar
+                            const diff = op.qtd_long - leg.qtd;
+                            if (diff <= 0) {
+                                await supabase.from('long_short_operations').update({ status: 'Encerrada' }).eq('id', op.id);
+                                op.status = 'Encerrada';
+                                if (diff < 0) {
+                                    leg.qtd = Math.abs(diff);
+                                } else {
+                                    matched = true;
+                                }
+                            } else {
+                                await supabase.from('long_short_operations').update({ qtd_long: diff }).eq('id', op.id);
+                                op.qtd_long = diff;
+                                matched = true;
+                            }
+                            closingsCount++;
+                            if (matched) break;
+                        }
+                    }
                 }
-                return p;
-            });
 
-            const toCloseCount = idsToClose.length;
-            const toInsertCount = finalPairs.filter(p => p.status === 'Aberta').length;
-
-            if (!confirm(`Importação detectou:\n- ${toInsertCount} novas operações abertas\n- ${toCloseCount} encerramentos de posições\n\nDeseja prosseguir?`)) return;
-
-            // 2. Fechar as operações inversas
-            if (idsToClose.length > 0) {
-                const { error: closeErr } = await supabase
-                    .from('long_short_operations')
-                    .update({ status: 'Encerrada' })
-                    .in('id', idsToClose);
-                if (closeErr) throw closeErr;
+                if (!matched) {
+                    remainingLegsOfFile.push(leg);
+                }
             }
 
-            // 3. Inserir as novas (algumas já marcadas como Encerrada se forem o fechamento)
-            const { error: insertErr } = await supabase.from('long_short_operations').insert(finalPairs);
-            if (insertErr) throw insertErr;
+            // 2. Agrupar as pernas restantes em novos pares L&S
+            const groupedByClient: Record<string, typeof legs> = {};
+            remainingLegsOfFile.forEach(leg => {
+                const key = leg.cliente || 'SEM_CLIENTE';
+                if (!groupedByClient[key]) groupedByClient[key] = [];
+                groupedByClient[key].push(leg);
+            });
 
-            alert("Importação e encerramentos concluídos com sucesso!");
+            Object.keys(groupedByClient).forEach(client => {
+                const clientLegs = groupedByClient[client];
+                const buys = clientLegs.filter(l => l.lado === 'C' || l.lado === 'COMPRA');
+                const sells = clientLegs.filter(l => l.lado === 'V' || l.lado === 'VENDA' || l.lado === 'S');
+
+                // Emparelhar enquanto houver ambos
+                while (buys.length > 0 && sells.length > 0) {
+                    const b = buys.shift()!;
+                    const s = sells.shift()!;
+                    finalPairs.push({
+                        cliente: client === 'SEM_CLIENTE' ? '' : client,
+                        ativo_long: b.ativo,
+                        qtd_long: b.qtd,
+                        pm_long: b.pm,
+                        ativo_short: s.ativo,
+                        qtd_short: s.qtd,
+                        pm_short: s.pm,
+                        data_inicio: b.data || new Date().toISOString().split('T')[0],
+                        status: 'Aberta'
+                    });
+                }
+            });
+
+            if (finalPairs.length === 0 && closingsCount === 0) {
+                alert("Nenhuma nova operação ou encerramento detectado.\nVerifique se as ordens na planilha já foram processadas ou se faltam pares.");
+                return;
+            }
+
+            if (!confirm(`Importação detectou:\n- ${finalPairs.length} novos pares L&S\n- ${closingsCount} encerramentos/ajustes de posições\n\nDeseja prosseguir?`)) return;
+
+            if (finalPairs.length > 0) {
+                const { error: insertErr } = await supabase.from('long_short_operations').insert(finalPairs);
+                if (insertErr) throw insertErr;
+            }
+
+            alert("Importação e ajustes concluídos com sucesso!");
             fetchOperations();
         } catch (err: any) {
             console.error('Import error:', err);
