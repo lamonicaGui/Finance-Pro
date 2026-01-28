@@ -104,6 +104,26 @@ const LongShortControl: React.FC = () => {
         }
     };
 
+    const handleDelete = async (ids: string | string[]) => {
+        if (!confirm('Tem certeza que deseja excluir esta(s) operação(ões)?')) return;
+
+        const idArray = Array.isArray(ids) ? ids : [ids];
+
+        try {
+            const { error } = await supabase
+                .from('long_short_operations')
+                .delete()
+                .in('id', idArray);
+
+            if (error) throw error;
+            setOperations(prev => prev.filter(op => !idArray.includes(op.id!)));
+        } catch (err) {
+            console.error('Error deleting operation:', err);
+            alert('Erro ao excluir operação.');
+        }
+    };
+
+
     const normalizeStr = (s: string) =>
         String(s || '').toLowerCase()
             .normalize("NFD")
@@ -301,12 +321,50 @@ const LongShortControl: React.FC = () => {
                 return;
             }
 
-            if (!confirm(`Importar ${pairs.length} operações Long & Short encontradas?`)) return;
+            // Lógica de Encerramento Automático
+            // 1. Buscar operações abertas atuais
+            const { data: openOps, error: fetchErr } = await supabase
+                .from('long_short_operations')
+                .select('*')
+                .eq('status', 'Aberta');
 
-            const { error } = await supabase.from('long_short_operations').insert(pairs);
-            if (error) throw error;
+            if (fetchErr) throw fetchErr;
 
-            alert("Importação concluída com sucesso!");
+            const idsToClose: string[] = [];
+            const finalPairs = pairs.map(p => {
+                // Procurar se existe uma operação aberta que é o inverso desta novo par
+                const inverseMatch = openOps?.find(ext =>
+                    ext.cliente === p.cliente &&
+                    ext.ativo_long === p.ativo_short &&
+                    ext.ativo_short === p.ativo_long
+                );
+
+                if (inverseMatch) {
+                    idsToClose.push(inverseMatch.id!);
+                    return { ...p, status: 'Encerrada' };
+                }
+                return p;
+            });
+
+            const toCloseCount = idsToClose.length;
+            const toInsertCount = finalPairs.filter(p => p.status === 'Aberta').length;
+
+            if (!confirm(`Importação detectou:\n- ${toInsertCount} novas operações abertas\n- ${toCloseCount} encerramentos de posições\n\nDeseja prosseguir?`)) return;
+
+            // 2. Fechar as operações inversas
+            if (idsToClose.length > 0) {
+                const { error: closeErr } = await supabase
+                    .from('long_short_operations')
+                    .update({ status: 'Encerrada' })
+                    .in('id', idsToClose);
+                if (closeErr) throw closeErr;
+            }
+
+            // 3. Inserir as novas (algumas já marcadas como Encerrada se forem o fechamento)
+            const { error: insertErr } = await supabase.from('long_short_operations').insert(finalPairs);
+            if (insertErr) throw insertErr;
+
+            alert("Importação e encerramentos concluídos com sucesso!");
             fetchOperations();
         } catch (err: any) {
             console.error('Import error:', err);
@@ -324,9 +382,10 @@ const LongShortControl: React.FC = () => {
         operations.forEach(op => {
             const key = `${op.cliente}_${op.ativo_long}_${op.ativo_short}`;
             if (!consolidatedMap[key]) {
-                consolidatedMap[key] = { ...op };
+                consolidatedMap[key] = { ...op, ids: [op.id].filter(Boolean) };
             } else {
                 const existing = consolidatedMap[key];
+                if (op.id) existing.ids.push(op.id);
                 const newQtdLong = existing.qtd_long + op.qtd_long;
                 const newQtdShort = existing.qtd_short + op.qtd_short;
 
@@ -467,6 +526,7 @@ const LongShortControl: React.FC = () => {
                                 <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center cursor-pointer hover:text-primary transition-colors" onClick={() => requestSort('resPercent')}>
                                     <div className="flex items-center justify-center gap-2">% {sortConfig?.key === 'resPercent' && (sortConfig.direction === 'asc' ? '▲' : '▼')}</div>
                                 </th>
+                                <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Ações</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -516,9 +576,18 @@ const LongShortControl: React.FC = () => {
                                         </div>
                                     </td>
                                     <td className="px-8 py-6 text-center">
-                                        <span className={`text-[11px] font-black ${op.resPercent >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                                            {op.resPercent >= 0 ? '+' : ''}{op.resPercent.toFixed(2)}%
-                                        </span>
+                                        <div className={`text-[12px] font-black tracking-tighter ${op.resPercent >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                                            {op.resPercent.toFixed(2)}%
+                                        </div>
+                                    </td>
+                                    <td className="px-8 py-6 text-center">
+                                        <button
+                                            onClick={() => handleDelete(op.ids)}
+                                            className="text-slate-400 hover:text-red-500 transition-colors"
+                                            title="Excluir operação"
+                                        >
+                                            <span className="material-symbols-outlined text-sm">delete</span>
+                                        </button>
                                     </td>
                                 </tr>
                             ))}
