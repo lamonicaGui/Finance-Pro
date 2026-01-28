@@ -232,7 +232,7 @@ const LongShortControl: React.FC = () => {
                     data: String(getRaw(item, ['Data de Início', 'Data', 'Abertura', 'Criação', 'Criado em']) || '').split(' ')[0], // Apenas a data
                     status: isAberta ? 'Aberta' : statusRaw
                 };
-            }).filter(leg => leg.cliente && leg.ativo && leg.status === 'Aberta');
+            }).filter(leg => leg.cliente && leg.ativo && leg.lado && leg.data && leg.status === 'Aberta');
 
             // Agrupar pernas em Pares (Long & Short)
             // Agrupamos por Cliente + Data
@@ -298,9 +298,10 @@ const LongShortControl: React.FC = () => {
 
             alert("Importação concluída com sucesso!");
             fetchOperations();
-        } catch (err) {
+        } catch (err: any) {
             console.error('Import error:', err);
-            alert("Erro ao importar dados. Verifique o console.");
+            const msg = err.message || (typeof err === 'string' ? err : 'Erro desconhecido');
+            alert(`Erro ao importar dados:\n${msg}`);
         } finally {
             setIsImporting(false);
         }
