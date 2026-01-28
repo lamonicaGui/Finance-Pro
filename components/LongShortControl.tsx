@@ -170,22 +170,28 @@ const LongShortControl: React.FC = () => {
             const normalized = rawData.map(item => {
                 const getRaw = (aliases: string[]) => {
                     const keys = Object.keys(item);
-                    const exact = keys.find(k => aliases.map(a => normalizeStr(a)).includes(normalizeStr(k)));
+                    const exact = keys.find(k => {
+                        const normK = normalizeStr(k);
+                        return aliases.some(a => normalizeStr(a) === normK);
+                    });
                     return exact ? item[exact] : undefined;
                 };
 
+                const statusRaw = String(getRaw(['Status da Operação', 'Status', 'Situação']) || 'Aberta').trim();
+                const isAberta = normalizeStr(statusRaw) === 'aberta' || statusRaw === '';
+
                 return {
-                    cliente: String(getRaw(['Cliente']) || '').trim(),
-                    ativo_long: String(getRaw(['Ativo Long']) || '').trim().toUpperCase(),
-                    qtd_long: parseNum(getRaw(['Quantidade Long'])),
-                    pm_long: parseNum(getRaw(['Preço Médio Long'])),
-                    ativo_short: String(getRaw(['Ativo Short']) || '').trim().toUpperCase(),
-                    qtd_short: parseNum(getRaw(['Quantidade Short'])),
-                    pm_short: parseNum(getRaw(['Preço Médio Short'])),
-                    data_inicio: String(getRaw(['Data de Início']) || ''),
-                    status: String(getRaw(['Status da Operação']) || 'Aberta')
+                    cliente: String(getRaw(['Cliente', 'Nome', 'Titular']) || '').trim(),
+                    ativo_long: String(getRaw(['Ativo Long', 'Papel Long', 'Ponta Longa', 'Long']) || '').trim().toUpperCase(),
+                    qtd_long: parseNum(getRaw(['Quantidade Long', 'Qtd Long', 'Volume Long'])),
+                    pm_long: parseNum(getRaw(['Preço Médio Long', 'PM Long', 'Preço Long'])),
+                    ativo_short: String(getRaw(['Ativo Short', 'Papel Short', 'Ponta Curta', 'Short', 'Venda']) || '').trim().toUpperCase(),
+                    qtd_short: parseNum(getRaw(['Quantidade Short', 'Qtd Short', 'Volume Short'])),
+                    pm_short: parseNum(getRaw(['Preço Médio Short', 'PM Short', 'Preço Short'])),
+                    data_inicio: String(getRaw(['Data de Início', 'Data', 'Abertura']) || ''),
+                    status: isAberta ? 'Aberta' : statusRaw
                 };
-            }).filter(op => op.cliente && op.ativo_long && op.status === 'Aberta');
+            }).filter(op => op.cliente && (op.ativo_long || op.ativo_short) && op.status === 'Aberta');
 
             if (normalized.length === 0) {
                 alert("Nenhum dado válido encontrado.");
