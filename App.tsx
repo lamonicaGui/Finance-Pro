@@ -13,6 +13,7 @@ import UserManagement from './components/UserManagement.tsx';
 import ApprovalsLayout from './components/ApprovalsLayout';
 import PerformanceAnalysis from './components/PerformanceAnalysis.tsx';
 import OpenPositions from './components/OpenPositions.tsx';
+import LongShortControl from './components/LongShortControl.tsx';
 import { Session } from '@supabase/supabase-js';
 import { copyAndOpenOutlook, generateOrderEmailHtml, generateOrderEmailSubject, generateOrderEmailPlainText } from './utils/emailGenerator.ts';
 
@@ -23,7 +24,7 @@ const App: React.FC = () => {
   const [userProfile, setUserProfile] = useState<any>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
 
-  const [activeTab, setActiveTab] = useState<'ordens' | 'laminas' | 'swing-trade' | 'gemini' | 'renda-fixa' | 'relatorios' | 'gestao-usuarios' | 'analise-performance' | 'posicoes-aberto'>('ordens');
+  const [activeTab, setActiveTab] = useState<'ordens' | 'laminas' | 'swing-trade' | 'gemini' | 'renda-fixa' | 'relatorios' | 'gestao-usuarios' | 'analise-performance' | 'posicoes-aberto' | 'controle-ls'>('ordens');
   const [expandedCategory, setExpandedCategory] = useState<'rv' | 'rf' | 'rel' | 'config' | null>('rv');
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
 
@@ -212,13 +213,13 @@ const App: React.FC = () => {
     const role = userProfile.role;
     if (role === 'adm') return true;
 
-    if (tab === 'ordens' || tab === 'laminas' || tab === 'swing-trade') {
+    if (tab === 'ordens' || tab === 'laminas' || tab === 'swing-trade' || tab === 'posicoes-aberto' || tab === 'analise-performance' || tab === 'controle-ls') {
       return role === 'usuario_rv' || role === 'user_bkfc';
     }
     if (tab === 'renda-fixa') {
       return role === 'usuario_rf' || role === 'user_bkfc';
     }
-    if (tab === 'relatorios' || tab === 'gemini' || tab === 'analise-performance') {
+    if (tab === 'relatorios' || tab === 'gemini') {
       return role === 'user_bkfc' || role === 'adm';
     }
     if (tab === 'gestao-usuarios') {
@@ -430,8 +431,8 @@ const App: React.FC = () => {
 
   const handleManualAction = async (client: ClientGroupType) => {
     const subject = generateOrderEmailSubject({ conta: client.account, id: client.id });
-    const html = generateOrderEmailHtml({ nome: client.name }, client.orders);
-    const plainText = generateOrderEmailPlainText({ nome: client.name }, client.orders);
+    const html = generateOrderEmailHtml({ nome: client.name, conta: client.account, id: client.id }, client.orders);
+    const plainText = generateOrderEmailPlainText({ nome: client.name, conta: client.account, id: client.id }, client.orders);
     const ccEmail = client.cc || userProfile?.email;
     await copyAndOpenOutlook(client.email || '', subject, html, plainText, ccEmail);
     setPreviewClient(null);
@@ -504,6 +505,7 @@ const App: React.FC = () => {
       case 'gestao-usuarios': return <UserManagement />;
       case 'analise-performance': return <PerformanceAnalysis />;
       case 'posicoes-aberto': return <OpenPositions />;
+      case 'controle-ls': return <LongShortControl />;
       case 'gemini': return (
         <div className="flex-1 flex flex-col p-8 gap-6 overflow-hidden">
           <div className="flex-1 bg-white dark:bg-card-dark rounded-3xl border border-slate-100 dark:border-slate-800 p-8 overflow-y-auto custom-scrollbar shadow-sm">
@@ -583,7 +585,7 @@ const App: React.FC = () => {
                   onClick={() => {
                     setExpandedCategory(prev => prev === 'rv' ? null : 'rv');
                   }}
-                  className={`w-full flex items-center justify-between p-3.5 rounded-xl border transition-all text-left shadow-sm ${['ordens', 'laminas', 'swing-trade', 'posicoes-aberto', 'analise-performance'].includes(activeTab)
+                  className={`w-full flex items-center justify-between p-3.5 rounded-xl border transition-all text-left shadow-sm ${['ordens', 'laminas', 'swing-trade', 'posicoes-aberto', 'analise-performance', 'controle-ls'].includes(activeTab)
                     ? 'bg-primary/10 border-primary text-primary shadow-primary/5'
                     : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600'}`}
                 >
@@ -594,7 +596,7 @@ const App: React.FC = () => {
                   <span className={`material-symbols-outlined text-sm transition-transform ${expandedCategory === 'rv' ? 'rotate-180' : ''}`}>expand_more</span>
                 </button>
 
-                {(expandedCategory === 'rv' || ['ordens', 'laminas', 'swing-trade', 'posicoes-aberto', 'analise-performance'].includes(activeTab)) && (
+                {(expandedCategory === 'rv' || ['ordens', 'laminas', 'swing-trade', 'posicoes-aberto', 'analise-performance', 'controle-ls'].includes(activeTab)) && (
                   <div className="pl-4 pr-1 pt-1 space-y-1 animate-in slide-in-from-top-2 duration-200">
                     <button
                       onClick={() => setActiveTab('ordens')}
@@ -644,6 +646,16 @@ const App: React.FC = () => {
                     >
                       <span className="material-icons-outlined text-base">analytics</span>
                       Análise de Performance
+                    </button>
+
+                    <button
+                      onClick={() => setActiveTab('controle-ls')}
+                      className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-all text-left text-[10px] font-black uppercase tracking-widest ${activeTab === 'controle-ls'
+                        ? 'text-primary bg-primary/5'
+                        : 'text-slate-500 hover:text-primary hover:bg-primary/5'}`}
+                    >
+                      <span className="material-icons-outlined text-base">balance</span>
+                      Controle L&S
                     </button>
                   </div>
                 )}
@@ -827,7 +839,8 @@ const App: React.FC = () => {
                         activeTab === 'relatorios' ? 'Central de Relatórios' :
                           activeTab === 'gestao-usuarios' ? 'Administração de Usuários' :
                             activeTab === 'analise-performance' ? 'Análise de Performance' :
-                              'AI Assistant'}
+                              activeTab === 'controle-ls' ? 'Controle L&S' :
+                                'AI Assistant'}
             </h1>
             <p className="text-sm font-medium text-slate-500 italic">
               {activeTab === 'ordens' ? 'Disparo de ordens estruturadas via API/Outlook' :
@@ -835,9 +848,10 @@ const App: React.FC = () => {
                   activeTab === 'swing-trade' ? 'Recomendações Equity Research' :
                     activeTab === 'renda-fixa' || activeTab === 'fixed-income-compromissadas' ? 'Gestão de Títulos e Ativos Bancários' :
                       activeTab === 'relatorios' ? 'Análise de performance e extratos' :
-                        activeTab === 'gestao-usuarios' ? 'Gerenciamento de acessos e perfis' :
-                          activeTab === 'analise-performance' ? 'Análise detalhada de rentabilidade' :
-                            'Inteligência Artificial Integrada'}
+                        activeTab === 'controle-ls' ? 'Acompanhamento de pares Long & Short' :
+                          activeTab === 'gestao-usuarios' ? 'Gerenciamento de acessos e perfis' :
+                            activeTab === 'analise-performance' ? 'Análise detalhada de rentabilidade' :
+                              'Inteligência Artificial Integrada'}
             </p>
           </div>
 
