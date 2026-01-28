@@ -141,12 +141,32 @@ const LongShortControl: React.FC = () => {
 
         if (file.name.endsWith('.csv')) {
             reader.onload = (event) => {
-                const text = new TextDecoder('utf-8').decode(new Uint8Array(event.target?.result as ArrayBuffer));
-                // Tenta detectar se o delimitador é ponto-e-vírgula pesquisando nas primeiras linhas
-                const firstLines = text.slice(0, 1000);
+                const data = new Uint8Array(event.target?.result as ArrayBuffer);
+
+                // Tenta UTF-8 primeiro
+                let text = new TextDecoder('utf-8').decode(data);
+
+                // Se parecer que deu erro de encoding ou faltam palavras chave, tenta Windows-1252
+                if (text.includes('\ufffd') || (!text.toLowerCase().includes('titular') && !text.toLowerCase().includes('ativo') && !text.toLowerCase().includes('corretora'))) {
+                    text = new TextDecoder('windows-1252').decode(data);
+                }
+
+                // Detectar se a primeira linha é metadados e encontrar o cabeçalho real
+                const lines = text.split('\n');
+                let headerIndex = 0;
+                for (let i = 0; i < Math.min(lines.length, 5); i++) {
+                    const line = lines[i].toLowerCase();
+                    if (line.includes('corretora') || line.includes('titular') || line.includes('ativo')) {
+                        headerIndex = i;
+                        break;
+                    }
+                }
+
+                const cleanText = lines.slice(headerIndex).join('\n');
+                const firstLines = cleanText.slice(0, 1000);
                 const hasSemicolon = firstLines.includes(';');
 
-                Papa.parse(text, {
+                Papa.parse(cleanText, {
                     header: true,
                     skipEmptyLines: true,
                     delimiter: hasSemicolon ? ';' : ',',
@@ -160,7 +180,21 @@ const LongShortControl: React.FC = () => {
                 try {
                     const data = new Uint8Array(event.target?.result as ArrayBuffer);
                     const workbook = XLSX.read(data, { type: 'array' });
-                    const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                    const sheetName = workbook.SheetNames[0];
+                    const sheet = workbook.Sheets[sheetName];
+
+                    // Detectar metadados no Excel
+                    const rows: any[] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+                    let headerRowIndex = 0;
+                    for (let i = 0; i < Math.min(rows.length, 5); i++) {
+                        const rowStr = JSON.stringify(rows[i]).toLowerCase();
+                        if (rowStr.includes('corretora') || rowStr.includes('titular') || rowStr.includes('ativo')) {
+                            headerRowIndex = i;
+                            break;
+                        }
+                    }
+
+                    const jsonData = XLSX.utils.sheet_to_json(sheet, { range: headerRowIndex });
                     processImport(jsonData);
                 } catch (err) {
                     setIsImporting(false);
@@ -251,7 +285,9 @@ const LongShortControl: React.FC = () => {
             });
 
             if (pairs.length === 0) {
-                alert("Nenhum par Long & Short válido encontrado. Verifique se a planilha contém compras (C) e vendas (V) para o mesmo cliente.");
+                const buysCount = legs.filter(l => l.lado === 'C' || l.lado === 'COMPRA').length;
+                const sellsCount = legs.filter(l => l.lado === 'V' || l.lado === 'VENDA' || l.lado === 'S').length;
+                alert(`Nenhum par Long & Short válido encontrado.\n\nPernas detectadas: ${legs.length}\nCompras: ${buysCount}\nVendas: ${sellsCount}\n\nVerifique se a planilha contém tanto a compra quanto a venda para cada par e se o status está como 'Aberta'.`);
                 return;
             }
 
