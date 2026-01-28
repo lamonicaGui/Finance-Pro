@@ -142,9 +142,14 @@ const LongShortControl: React.FC = () => {
         if (file.name.endsWith('.csv')) {
             reader.onload = (event) => {
                 const text = new TextDecoder('utf-8').decode(new Uint8Array(event.target?.result as ArrayBuffer));
+                // Tenta detectar se o delimitador é ponto-e-vírgula pesquisando nas primeiras linhas
+                const firstLines = text.slice(0, 1000);
+                const hasSemicolon = firstLines.includes(';');
+
                 Papa.parse(text, {
                     header: true,
                     skipEmptyLines: true,
+                    delimiter: hasSemicolon ? ';' : ',',
                     complete: (results) => processImport(results.data),
                     error: () => setIsImporting(false)
                 });
@@ -167,48 +172,99 @@ const LongShortControl: React.FC = () => {
 
     const processImport = async (rawData: any[]) => {
         try {
-            const normalized = rawData.map(item => {
-                const getRaw = (aliases: string[]) => {
-                    const keys = Object.keys(item);
-                    const exact = keys.find(k => {
-                        const normK = normalizeStr(k);
-                        return aliases.some(a => normalizeStr(a) === normK);
-                    });
-                    return exact ? item[exact] : undefined;
-                };
+            // Se o arquivo tiver uma linha de metadados no topo, pulamos se necessário.
+            // O PapaParse já lida com o cabeçalho se configurado.
 
-                const statusRaw = String(getRaw(['Status da Operação', 'Status', 'Situação']) || 'Aberta').trim();
+            const getRaw = (item: any, aliases: string[]) => {
+                const keys = Object.keys(item);
+                const exact = keys.find(k => {
+                    const normK = normalizeStr(k);
+                    return aliases.some(a => normalizeStr(a) === normK);
+                });
+                return exact ? item[exact] : undefined;
+            };
+
+            // Processar como "legs" individuais primeiro
+            const legs = rawData.map(item => {
+                const statusRaw = String(getRaw(item, ['Status da Operação', 'Status', 'Situação']) || 'Aberta').trim();
                 const isAberta = normalizeStr(statusRaw) === 'aberta' || statusRaw === '';
 
                 return {
-                    cliente: String(getRaw(['Cliente', 'Nome', 'Titular']) || '').trim(),
-                    ativo_long: String(getRaw(['Ativo Long', 'Papel Long', 'Ponta Longa', 'Long']) || '').trim().toUpperCase(),
-                    qtd_long: parseNum(getRaw(['Quantidade Long', 'Qtd Long', 'Volume Long'])),
-                    pm_long: parseNum(getRaw(['Preço Médio Long', 'PM Long', 'Preço Long'])),
-                    ativo_short: String(getRaw(['Ativo Short', 'Papel Short', 'Ponta Curta', 'Short', 'Venda']) || '').trim().toUpperCase(),
-                    qtd_short: parseNum(getRaw(['Quantidade Short', 'Qtd Short', 'Volume Short'])),
-                    pm_short: parseNum(getRaw(['Preço Médio Short', 'PM Short', 'Preço Short'])),
-                    data_inicio: String(getRaw(['Data de Início', 'Data', 'Abertura']) || ''),
+                    cliente: String(getRaw(item, ['Cliente', 'Nome', 'Titular', 'Nome do Cliente']) || '').trim(),
+                    ativo: String(getRaw(item, ['Ativo', 'Papel', 'Símbolo']) || '').trim().toUpperCase(),
+                    lado: String(getRaw(item, ['Lado', 'C/V', 'Sentido']) || '').trim().toUpperCase(), // 'C' ou 'V'
+                    qtd: parseNum(getRaw(item, ['Quantidade', 'Qtd', 'Volume'])),
+                    pm: parseNum(getRaw(item, ['Preço Médio', 'PM', 'Preço', 'Preço Executado'])),
+                    data: String(getRaw(item, ['Data de Início', 'Data', 'Abertura', 'Criação', 'Criado em']) || '').split(' ')[0], // Apenas a data
                     status: isAberta ? 'Aberta' : statusRaw
                 };
-            }).filter(op => op.cliente && (op.ativo_long || op.ativo_short) && op.status === 'Aberta');
+            }).filter(leg => leg.cliente && leg.ativo && leg.status === 'Aberta');
 
-            if (normalized.length === 0) {
-                alert("Nenhum dado válido encontrado.");
+            // Agrupar pernas em Pares (Long & Short)
+            // Agrupamos por Cliente + Data
+            const groupedByClient: Record<string, typeof legs> = {};
+            legs.forEach(leg => {
+                if (!groupedByClient[leg.cliente]) groupedByClient[leg.cliente] = [];
+                groupedByClient[leg.cliente].push(leg);
+            });
+
+            const pairs: any[] = [];
+            Object.keys(groupedByClient).forEach(client => {
+                const clientLegs = groupedByClient[client];
+                const buys = clientLegs.filter(l => l.lado === 'C' || l.lado === 'COMPRA');
+                const sells = clientLegs.filter(l => l.lado === 'V' || l.lado === 'VENDA' || l.lado === 'S');
+
+                // Tentar parear por data
+                buys.forEach(b => {
+                    const matchIdx = sells.findIndex(s => s.data === b.data);
+                    if (matchIdx !== -1) {
+                        const s = sells.splice(matchIdx, 1)[0];
+                        pairs.push({
+                            cliente: client,
+                            ativo_long: b.ativo,
+                            qtd_long: b.qtd,
+                            pm_long: b.pm,
+                            ativo_short: s.ativo,
+                            qtd_short: s.qtd,
+                            pm_short: s.pm,
+                            data_inicio: b.data,
+                            status: 'Aberta'
+                        });
+                    } else {
+                        // Se não achar par por data, mas for o único client-buy e tiver um client-sell, pareia mesmo assim
+                        if (sells.length > 0) {
+                            const s = sells.splice(0, 1)[0];
+                            pairs.push({
+                                cliente: client,
+                                ativo_long: b.ativo,
+                                qtd_long: b.qtd,
+                                pm_long: b.pm,
+                                ativo_short: s.ativo,
+                                qtd_short: s.qtd,
+                                pm_short: s.pm,
+                                data_inicio: b.data,
+                                status: 'Aberta'
+                            });
+                        }
+                    }
+                });
+            });
+
+            if (pairs.length === 0) {
+                alert("Nenhum par Long & Short válido encontrado. Verifique se a planilha contém compras (C) e vendas (V) para o mesmo cliente.");
                 return;
             }
 
-            if (!confirm(`Importar ${normalized.length} operações abertas?`)) return;
+            if (!confirm(`Importar ${pairs.length} operações Long & Short encontradas?`)) return;
 
-            // Inserir no Supabase (O usuário quer que reflita para todos, então não limpamos por usuário)
-            const { error } = await supabase.from('long_short_operations').insert(normalized);
+            const { error } = await supabase.from('long_short_operations').insert(pairs);
             if (error) throw error;
 
-            alert("Importação concluída!");
+            alert("Importação concluída com sucesso!");
             fetchOperations();
         } catch (err) {
             console.error('Import error:', err);
-            alert("Erro ao importar dados.");
+            alert("Erro ao importar dados. Verifique o console.");
         } finally {
             setIsImporting(false);
         }
